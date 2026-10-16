@@ -278,6 +278,52 @@ body::before{
 /* ============ 选角 ============ */
 .screen{display:none}
 .screen.on{display:flex;flex-direction:column;gap:12px}
+
+/* ============ 开场动画 ============ */
+/* 用 seedance 生成的 5 秒片段。为什么视频只做开场、不做常驻立绘：
+   视频没有 alpha 通道，贴在草地上必须抠像，白毛绒玩偶逐帧抠会抖动；
+   而开场是整屏播放、自带背景，正好用得上。
+   造型靠"首帧=立绘合成到草地"锁死，所以画风和游戏一致。 */
+.intro{
+  position:fixed;inset:0;z-index:90;
+  display:none;align-items:center;justify-content:center;
+  background:#0d0f14;
+}
+.intro.on{display:flex;animation:fadeIn .3s ease}
+.intro video{
+  width:100%;height:100%;object-fit:contain;
+  display:block;
+}
+.intro.out{animation:introOut .55s ease forwards}
+@keyframes introOut{to{opacity:0}}
+/* 跳过按钮：始终可见，但不用太抢眼 —— 大多数人会看完这 5 秒 */
+.intro .skip{
+  position:absolute;right:14px;bottom:18px;
+  padding:7px 15px;border-radius:999px;
+  font-size:12px;font-weight:800;color:#fff;
+  background:rgba(20,22,30,.42);
+  border:1px solid rgba(255,255,255,.28);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  cursor:pointer;opacity:.75;transition:opacity .2s;
+}
+.intro .skip:hover{opacity:1}
+/* 自动播放被拦时：提示用户点一下，同时把整屏变成可点区域 */
+.intro.needtap{cursor:pointer}
+.intro.needtap::after{
+  content:'▶';
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:78px;height:78px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  padding-left:6px;font-size:30px;color:#fff;
+  background:rgba(20,22,30,.42);
+  border:2px solid rgba(255,255,255,.5);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  pointer-events:none;
+}
+@media(prefers-reduced-motion:reduce){
+  /* 动效敏感的人直接跳过，别放视频 */
+  .intro{display:none!important}
+}
 .picker-head{text-align:center;padding:6px 0 2px}
 .picker-head h1{
   margin:0 0 4px;font-size:25px;font-weight:900;letter-spacing:.5px;
@@ -445,6 +491,13 @@ body::before{
 </style>
 </head>
 <body>
+
+<!-- 开场动画（seedance 生成，首帧由立绘合成到草地锁定造型）-->
+<div class="intro" id="intro">
+  <video id="introVid" src="assets/video/intro_unicorn.mp4"
+         muted playsinline preload="auto"></video>
+  <button class="skip" id="introSkip">跳过 ›</button>
+</div>
 
 <div class="wrap">
 
@@ -687,27 +740,71 @@ const pickGift = () => {
 };
 
 /* ---------------- 3. 数值配置 ---------------- */
+/* ============ 数值配置 ============
+   注意：当前是 **demo 档**，节奏调得很快，为的是 5 分钟内能演示完所有功能。
+   每项后面括号里是"正常档"的取值，将来要恢复正式节奏就按括号里的改。
+
+   正常档参考：一整天慢慢喂、慢慢涨，一天大概升 1 级。
+   demo 档参考：主动喂草约 25~35 秒升一级，5 分钟能演示 8~10 次升级。*/
 const CFG = {
-  HAPPY_DECAY   : 0.055,   // 开心度每秒自然衰减
-  HUNGRY_EXTRA  : 0.045,   // 饱食度低于阈值时额外的掉心情速度
+  HAPPY_DECAY   : 0.35,    // 开心度每秒自然衰减 (正常 0.055)
+  HUNGRY_EXTRA  : 0.30,    // 饱食度低于阈值时额外的掉心情速度 (正常 0.045)
   HUNGRY_LINE   : 30,
-  FULL_DECAY    : 0.05,    // 饱食度每秒衰减
-  CONTENT_HAPPY : 0.012,   // 吃饱时每秒回一点心情
+  FULL_DECAY    : 0.40,    // 饱食度每秒衰减 (正常 0.05)
+  CONTENT_HAPPY : 0.08,    // 吃饱时每秒回一点心情 (正常 0.012)
   CONTENT_LINE  : 78,
-  GROWTH_BASE   : 0.17,    // 生长度基础速率（每秒，满条件）
-  FEED_FULL     : 13,      // 一根草的基准饱食度
-  FEED_HAPPY_UP : 3,       // 喂草小幅加心情
-  FEED_GROWTH   : 0.5,     // 喂草即时生长度
+
+  /* 生长度**只靠喂草**（含抚摸/玩耍的小幅加成），不做每秒自动累积 ——
+     否则放着不管它也会自己升级，玩家就没有"养成"的参与感了。
+     (正常档喂一根草 +0.5) */
+  FEED_GROWTH   : 8,       // 喂一根草的生长度
+  PLAY_GROWTH   : 4,       // 陪玩一次的生长度（比喂草少，是点缀）
+
+  FEED_FULL     : 18,      // 一根草的基准饱食度 (正常 13)
+  FEED_HAPPY_UP : 4,       // 喂草小幅加心情 (正常 3)
   PET_HAPPY     : 18,
   PLAY_HAPPY    : 26,
   PLAY_FULL_COST: 7,
-  GRASS_START   : 12,
-  GRASS_MAX     : 40,
-  GRASS_EVERY   : 14,      // 每 N 秒长一根草
-  DAY_GRASS_GIFT: 6,       // 新的一天赠送的草
+
+  GRASS_START   : 20,      // (正常 12)
+  GRASS_MAX     : 45,      // (正常 40)
+  GRASS_EVERY   : 3,       // 每 N 秒长一根草 (正常 14)
+  DAY_GRASS_GIFT: 6,
+
+  /* 抚摸/玩耍改用**冷却恢复**，而不是"每天限几次"。
+     5 分钟的演示里，每日限制等于把按钮锁死，玩不起来。
+     现在是：用完扣一次，之后每 N 秒自动补一次，补到上限为止。
+     (正常档：PET_MAX 1 / PLAY_MAX 2，次日才恢复) */
+  PET_MAX   : 5,   PET_REGEN  : 4,   // 每 4 秒回一次抚摸
+  PLAY_MAX  : 5,   PLAY_REGEN : 6,   // 每 6 秒回一次玩耍
 };
-const growthCap = lv => 100 + (lv-1)*38;
+
+/* 成长曲线：等级越高，升级需要的生长度越多。
+   (正常档是 100 + (lv-1)*38) */
+const growthCap = lv => 100 + (lv-1)*20;
+
 const feedEff   = happy => 0.35 + 0.95*(happy/100);   // 0.35x ~ 1.30x
+
+/* ============ 体型随等级增长 ============
+   Lv.1 是一只小崽，随等级一路长大，满级到 MAX。
+   关键约束：**放大后不能超出舞台**，所以实际倍率还要被 scaleCap 夹一次
+   （scaleCap 由 recomputeBounds 按舞台真实尺寸算出）。*/
+const GROW = {
+  MIN: 0.52,          // Lv.1 的体型（小小的一只）
+  MAX: 1.15,          // 满级体型
+  LEVELS: 8,          // 用 8 级走完这段增长，之后不再变大
+  MAX_W_FRAC: 0.86,   // 立绘宽度最多占舞台的多少（留出边距，绝不贴边）
+  MAX_H_FRAC: 0.94,   // 高度上限，避免顶出舞台
+};
+
+/* 由等级算出的目标倍率（未夹紧）*/
+function levelScale(lv){
+  const t = Math.min(Math.max((lv || 1) - 1, 0), GROW.LEVELS - 1) / (GROW.LEVELS - 1);
+  return GROW.MIN + (GROW.MAX - GROW.MIN) * t;
+}
+
+/* 实际可用的倍率上限，recomputeBounds 会按舞台尺寸刷新它 */
+let scaleCap = GROW.MAX;
 
 const MOODS = [
   {min:88, e:'🤩', t:'超级开心'},
@@ -735,7 +832,9 @@ function freshState(){
     full:62,
     growth:0,
     gifts:{},          // name -> count
-    daily:{pet:1, play:2},
+    // 抚摸/玩耍的次数：用完会随时间自动补回，见 CFG.PET_REGEN / PLAY_REGEN
+    pet:CFG.PET_MAX, petT:0,
+    play:CFG.PLAY_MAX, playT:0,
     feeds:0, pets:0, plays:0, giftTotal:0, bornAt:Date.now(),
     grassTimer:0,
     muted:false,
@@ -749,8 +848,13 @@ function load(){
     const o = JSON.parse(raw);
     const base = freshState();
     const s = Object.assign(base, o);
-    s.daily  = Object.assign({pet:1,play:2}, o.daily||{});
-    s.gifts  = o.gifts || {};
+    // 老存档（用 daily 计数）迁移到新的冷却制字段上
+    if(o.daily && !o.pet){
+      s.pet  = Math.max(0, Math.min(CFG.PET_MAX,  o.daily.pet  ?? 0));
+      s.play = Math.max(0, Math.min(CFG.PLAY_MAX, o.daily.play ?? 0));
+    }
+    delete s.daily;
+    s.gifts = o.gifts || {};
     return s;
   }catch(e){ return freshState(); }
 }
@@ -794,6 +898,7 @@ function buzz(ms=12){ if(navigator.vibrate) try{navigator.vibrate(ms);}catch(e){
 const $ = id => document.getElementById(id);
 const el = {
   screenPick:$('screenPick'), screenGame:$('screenGame'), pickGrid:$('pickGrid'),
+  intro:$('intro'), introVid:$('introVid'), introSkip:$('introSkip'),
   uniWrap:$('uniWrap'), floaties:$('floaties'), stage:$('stage'),
   effBox:$('effBox'), effVal:$('effVal'), effHint:$('effHint'),
   moodBox:$('moodBox'), moodTxt:$('moodTxt'),
@@ -902,7 +1007,24 @@ function boundsFor(stageW, uniW, padPct=2){
 }
 
 function recomputeBounds(){
-  const b = boundsFor(el.stage.clientWidth, el.uniWrap.offsetWidth);
+  const sw = el.stage.clientWidth, sh = el.stage.clientHeight;
+  // offsetWidth/Height 是**布局**尺寸，不受 transform:scale 影响，
+  // 所以它们就是 scale = 1.0 时的基准尺寸。
+  const bw = el.uniWrap.offsetWidth, bh = el.uniWrap.offsetHeight;
+  if(!(sw > 0) || !(bw > 0)) return false;
+
+  /* 先算体型上限：`升到满级也不超出舞台`。
+     这一步与等级无关，只取决于舞台和基准尺寸。 */
+  if(sh > 0 && bh > 0){
+    const byW = (sw * GROW.MAX_W_FRAC) / bw;
+    const byH = (sh * GROW.MAX_H_FRAC) / bh;
+    scaleCap = Math.max(0.3, Math.min(byW, byH));
+  }
+
+  /* 走动范围必须按**缩放后**的实际宽度算 ——
+     否则等级升上去、体型变大之后，走到边缘会被 overflow 裁掉。 */
+  const effScale = Math.min(levelScale(S && S.lv), scaleCap);
+  const b = boundsFor(sw, bw * effScale);
   if(!b) return false;
   BOUNDS.min = b.min;
   BOUNDS.max = b.max;
@@ -978,7 +1100,10 @@ function updateUni(now, dt){
   }
 
   // ===== 2. 合成 transform =====
-  const lvScale = 1 + Math.min(S.lv-1, 6) * 0.035;
+  /* 体型随等级长大：Lv.1 是小崽，满级到 GROW.MAX。
+     再被 scaleCap 夹一次 —— 那是按舞台真实尺寸算出的上限，
+     保证放大后不会超出画面（窗口很小的时候尤其重要）。*/
+  const lvScale = Math.min(levelScale(S.lv), scaleCap);
 
   // 呼吸：一直都在，用独立的慢相位
   const breathe = REDUCED ? 0 : Math.sin(t*1.75 + ANIM.breath) * 3.2;
@@ -1089,8 +1214,10 @@ function checkDay(silent=false){
   const passed = Math.max(1, Math.round((d2-d1)/86400000));
   S.day += passed;
   S.lastDate = t;
-  S.daily.pet  = 1;
-  S.daily.play = 2;
+  // 新的一天：把互动次数补满（次数本身已经会随时间自动回补，
+  // 这里是"过夜"额外给的一次满血）
+  S.pet = CFG.PET_MAX; S.petT = 0;
+  S.play = CFG.PLAY_MAX; S.playT = 0;
   S.grass = Math.min(CFG.GRASS_MAX, S.grass + CFG.DAY_GRASS_GIFT * Math.min(passed,3));
   S.happy = Math.min(100, S.happy + 6);   // 见到主人，开心一点
   S.growth = Math.min(growthCap(S.lv), S.growth + 2);
@@ -1169,17 +1296,24 @@ function render(){
     el.badgeGrass.classList.toggle('zero', noGrass);
   }
 
-  if(changed('pet', S.daily.pet)){
-    el.btnPet.disabled = S.daily.pet <= 0;
-    el.badgePet.textContent = S.daily.pet;
-    el.badgePet.classList.toggle('zero', S.daily.pet <= 0);
-    el.subPet.textContent = S.daily.pet > 0 ? `+${petAmount()} 开心` : '今天摸够啦';
+  /* 注意 key 里带上了倒计时秒数：次数为 0 时 S.pet 一直是 0 不会变，
+     只拿 S.pet 做 key 的话"几秒后可以再摸"就永远停在初始值、不会往下走。 */
+  const petLeft  = S.pet  > 0 ? 0 : Math.ceil(CFG.PET_REGEN  - S.petT);
+  const playLeft = S.play > 0 ? 0 : Math.ceil(CFG.PLAY_REGEN - S.playT);
+
+  if(changed('pet', S.pet + '|' + petLeft)){
+    el.btnPet.disabled = S.pet <= 0;
+    el.badgePet.textContent = S.pet;
+    el.badgePet.classList.toggle('zero', S.pet <= 0);
+    el.subPet.textContent = S.pet > 0 ? `+${petAmount()} 开心`
+                                      : `${petLeft} 秒后可以再摸`;
   }
-  if(changed('play', S.daily.play)){
-    el.btnPlay.disabled = S.daily.play <= 0;
-    el.badgePlay.textContent = S.daily.play;
-    el.badgePlay.classList.toggle('zero', S.daily.play <= 0);
-    el.subPlay.textContent = S.daily.play > 0 ? `+${playAmount()} 开心` : '今天玩够啦';
+  if(changed('play', S.play + '|' + playLeft)){
+    el.btnPlay.disabled = S.play <= 0;
+    el.badgePlay.textContent = S.play;
+    el.badgePlay.classList.toggle('zero', S.play <= 0);
+    el.subPlay.textContent = S.play > 0 ? `+${playAmount()} 开心`
+                                       : `${playLeft} 秒后可以再玩`;
   }
 
   // 顶部
@@ -1223,12 +1357,12 @@ function doFeed(){
 }
 
 function doPet(){
-  if(S.daily.pet <= 0){ SFX.no(); flashBtn(el.btnPet); toast('今天已经摸够啦，明天再来 🤚'); return; }
+  if(S.pet <= 0){ SFX.no(); flashBtn(el.btnPet); toast(`它还在回味呢，${Math.ceil(CFG.PET_REGEN - S.petT)} 秒后再来 🤚`); return; }
   const u = byId(S.chosen);
-  S.daily.pet--; S.pets++;
+  S.pet--; S.pets++;
   const amt = petAmount();
   S.happy = Math.min(100, S.happy + amt);
-  S.growth = Math.min(growthCap(S.lv), S.growth + 3 * (u.bonus.growthGain || 1));
+  S.growth = Math.min(growthCap(S.lv), S.growth + CFG.PLAY_GROWTH * 0.5 * (u.bonus.growthGain || 1));
 
   flashBtn(el.btnPet);
   popUni('shake', 640);
@@ -1240,11 +1374,11 @@ function doPet(){
 }
 
 function doPlay(){
-  if(S.daily.play <= 0){ SFX.no(); flashBtn(el.btnPlay); toast('它累啦，明天再玩 🎠'); return; }
+  if(S.play <= 0){ SFX.no(); flashBtn(el.btnPlay); toast(`它想歇一会儿，${Math.ceil(CFG.PLAY_REGEN - S.playT)} 秒后再玩 🎠`); return; }
   const u = byId(S.chosen);
-  S.daily.play--; S.plays++;
+  S.play--; S.plays++;
   const amt  = playAmount();
-  const grow = 9 * (u.bonus.growthGain || 1);
+  const grow = CFG.PLAY_GROWTH * (u.bonus.growthGain || 1);
   S.happy  = Math.min(100, S.happy + amt);
   S.full   = Math.max(0,  S.full - CFG.PLAY_FULL_COST);
   S.growth = Math.min(growthCap(S.lv), S.growth + grow);
@@ -1269,6 +1403,9 @@ function checkGrowth(){
 
   S.growth -= cap;
   S.lv++;
+  // 升级后体型变大，走动范围要跟着重算 —— 否则它还是按旧尺寸走，
+  // 走到边缘会被 overflow 裁掉一截。
+  recomputeBounds();
   const g = pickGift();
   S.gifts[g.n] = (S.gifts[g.n] || 0) + 1;
   S.giftTotal++;
@@ -1393,7 +1530,6 @@ function tick(now){
     checkDay();
 
     const u = byId(S.chosen);
-    const cap = growthCap(S.lv);
 
     // 开心度衰减
     let hd = CFG.HAPPY_DECAY + (u.bonus.happyDecay || 0);
@@ -1404,14 +1540,20 @@ function tick(now){
     // 饱食度衰减
     S.full = Math.max(0, S.full - CFG.FULL_DECAY*dt);
 
-    // 生长度积累：饱食度 × 开心度
-    if(S.full >= 20 && S.happy >= 15){
-      const rate = CFG.GROWTH_BASE
-                 * (S.full/100)
-                 * (0.35 + 0.65*(S.happy/100))
-                 * (u.bonus.growthGain || 1);
-      S.growth = Math.min(cap, S.growth + rate*dt);
-    }
+    /* 生长度不在这里自动累积 —— 它只由喂草/陪玩推动（见 doFeed / doPlay）。
+       早先写成每秒自动涨，结果放着不管也能升级，玩家反而没有参与感。 */
+
+    /* 抚摸/玩耍的次数随时间回补。
+       用独立计时器而不是"每天重置"：演示只有几分钟，
+       按天重置等于把按钮锁死。 */
+    if(S.pet < CFG.PET_MAX){
+      S.petT += dt;
+      if(S.petT >= CFG.PET_REGEN){ S.petT -= CFG.PET_REGEN; S.pet = Math.min(CFG.PET_MAX, S.pet + 1); }
+    } else S.petT = 0;
+    if(S.play < CFG.PLAY_MAX){
+      S.playT += dt;
+      if(S.playT >= CFG.PLAY_REGEN){ S.playT -= CFG.PLAY_REGEN; S.play = Math.min(CFG.PLAY_MAX, S.play + 1); }
+    } else S.playT = 0;
 
     // 草地生长
     S.grassTimer += dt;
@@ -1436,18 +1578,83 @@ window.addEventListener('beforeunload', save);
 document.addEventListener('visibilitychange', ()=>{ if(document.hidden) save(); else { checkDay(); lastTime = performance.now(); } });
 
 /* ---------------- 18. 启动 ---------------- */
+
+/* 播放开场动画。
+   三个要注意的点：
+   1. 必须 muted —— 否则浏览器会以"未经用户交互"为由拒绝自动播放。
+   2. 结束/跳过/出错三条路径都要能进入游戏，且只能进一次，
+      所以用一个 done 标志兜住，避免 play 和 ended 重复触发。
+   3. 视频加载失败不该把玩家挡在门外，直接跳过。 */
+function playIntro(onDone){
+  let done = false;
+  const finish = ()=>{
+    if(done) return;
+    done = true;
+    try { sessionStorage.setItem('nici.intro', '1'); } catch(e){}
+    el.intro.classList.add('out');
+    setTimeout(()=>{
+      el.intro.classList.remove('on','out');
+      try { el.introVid.pause(); el.introVid.removeAttribute('src'); el.introVid.load(); } catch(e){}
+      onDone();
+    }, 560);
+  };
+
+  el.intro.classList.add('on');
+  el.introSkip.addEventListener('click', finish, {once:true});
+  el.introVid.addEventListener('ended', finish, {once:true});
+  el.introVid.addEventListener('error', finish, {once:true});
+  // 兜底：某些浏览器在节能模式下会卡住播放，别让玩家干等
+  setTimeout(finish, 9000);
+
+  /* 自动播放被拦时的处理。
+     部分浏览器（省电模式、无痕、或用户设了禁止自动播放）会拒绝 play()，
+     如果这时直接进游戏，玩家就永远看不到这段开场 —— 所以改成
+     "等一次点击再播"：点击本身就是用户手势，能解锁播放。 */
+  let unlocked = false;
+  const p = el.introVid.play();
+  if(p && p.catch) p.catch(()=>{
+    if(unlocked || done) return;
+    unlocked = true;
+    el.intro.classList.add('needtap');
+    el.introSkip.textContent = '点击播放 ›';
+    el.intro.addEventListener('click', ev=>{
+      // 点在"跳过"上就让它跳过，别又去播一遍
+      if(ev.target.closest('.skip')) return;
+      el.intro.classList.remove('needtap');
+      el.introSkip.textContent = '跳过 ›';
+      const q = el.introVid.play();
+      if(q && q.catch) q.catch(()=>{});   // 还是失败就交由 9 秒兜底
+    }, {once:true});
+  });
+}
+
 (function boot(){
   S = load();
   renderPick();
-  const savedId = S.chosen && (typeof S.chosen === 'string' ? S.chosen : S.chosen.id);
-  if(savedId && byId(savedId)){
-    chooseUnicorn(savedId);      // 有存档：直接回到牧场
-  }else{
-    S.chosen = null;
-    el.screenPick.classList.add('on');
+
+  /* 开场动画：只在**本会话第一次**进游戏时放一次。
+     用 sessionStorage 而不是 localStorage —— 刷新页面不该重放，
+     但关掉标签页重开时再看一遍是合理的（这是"故事的开头"）。 */
+  let playedIntro = false;
+  try { playedIntro = sessionStorage.getItem('nici.intro') === '1'; } catch(e){}
+
+  function startGame(){
+    const savedId = S.chosen && (typeof S.chosen === 'string' ? S.chosen : S.chosen.id);
+    if(savedId && byId(savedId)){
+      chooseUnicorn(savedId);      // 有存档：直接回到牧场
+    }else{
+      S.chosen = null;
+      el.screenPick.classList.add('on');
+    }
+    lastTime = performance.now();
+    requestAnimationFrame(tick);
   }
-  lastTime = performance.now();
-  requestAnimationFrame(tick);
+
+  if(playedIntro || !el.intro || REDUCED){
+    startGame();
+  }else{
+    playIntro(startGame);
+  }
 })();
 </script>
 </body>
