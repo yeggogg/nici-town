@@ -1,14 +1,27 @@
 # ---- 生成过程的中间产物（体积大，游戏不引用）----
 generated/
 assets/*.png
+assets/cand/
+assets/gifts/
+
+# ---- 研究用的官方素材（版权材料，不分发）----
+# 仅本地用于造型比对，不进仓库
+_research/
 
 # ---- 接口响应缓存 ----
 # 内含预签名的 S3 URL，会暴露内部域名与 AWS 账号，不要公开
-assets/_last_response.json
-assets/opt/_last_response.json
 **/_last_response.json
+**/_last_failed.json
 
 # ---- 本地配置 ----
 .claude/
-*.pyc
 __pycache__/
+*.pyc
+
+# ---- 临时的对比/调试产物 ----
+_tmp_cmp/
+_tmp*/
+
+# ---- 视频/图片接口的请求快照（含内部 CDN 域名）----
+assets/video/_last_request.json
+assets/video/_last_*.json

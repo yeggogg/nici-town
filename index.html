@@ -60,15 +60,13 @@ body::before{
   padding:10px 14px;
   box-shadow:var(--shadow);
 }
+/* 官方 logo（NICI 官网 images/logo_2x.png 原文件，160x56 RGBA）。
+   之前是用字体+圆点模仿的，现在换成真素材。 */
 .logo{
-  display:flex;align-items:center;
-  font-weight:900;font-size:19px;letter-spacing:.5px;
-  color:#f04438;font-style:italic;
-}
-.logo .star{
-  width:15px;height:15px;margin-left:3px;border-radius:50%;
-  background:#f04438;color:#fff;font-size:10px;line-height:15px;text-align:center;
-  font-style:normal;transform:translateY(-6px);
+  display:block;flex:0 0 auto;
+  height:22px;width:auto;
+  /* 高分辨率屏下边缘更锐利 */
+  image-rendering:-webkit-optimize-contrast;
 }
 .topbar .title{font-size:13px;font-weight:700;color:var(--ink-soft);letter-spacing:.3px}
 .topbar .spacer{flex:1}
@@ -353,6 +351,14 @@ body::before{
 .gsl.r2{background:linear-gradient(180deg,#fff8e2,#ffeec4);border-color:#ffd98a;box-shadow:0 4px 14px rgba(255,190,60,.28)}
 .gsl.locked{color:rgba(120,100,150,.25);font-size:20px}
 .gsl.has{cursor:pointer}
+/* 礼品插画：铺满格子，留一点边距 */
+.gimg{width:82%;height:82%;object-fit:contain;pointer-events:none;
+      filter:drop-shadow(0 3px 5px rgba(90,70,120,.18))}
+/* 开箱揭晓里的大图 */
+.gimg-big{width:120px;height:120px;object-fit:contain;
+          filter:drop-shadow(0 8px 16px rgba(90,70,120,.22))}
+/* 详情行里的小图，与文字同一行 */
+.gdetail-img{width:26px;height:26px;object-fit:contain;vertical-align:-7px;margin-right:5px}
 .gsl.has:hover{transform:translateY(-3px) scale(1.04);box-shadow:0 10px 22px rgba(120,95,160,.22)}
 .gsl .cnt{
   position:absolute;bottom:3px;right:4px;
@@ -433,7 +439,7 @@ body::before{
   .meter{grid-template-columns:66px 1fr 40px;gap:8px}
   .btn{padding:11px 6px 9px}
   .btn .em{font-size:21px}
-  .logo{font-size:17px}
+  .logo{height:19px}
   .topbar .title{display:none}
 }
 </style>
@@ -445,8 +451,7 @@ body::before{
   <!-- ========== 选角界面 ========== -->
   <section id="screenPick" class="screen on">
     <div class="topbar">
-      <div class="logo">NICI<span class="star">★</span></div>
-      <div class="title">Theodor &amp; Friends</div>
+      <img class="logo" src="assets/brand/logo.png" alt="NICI" draggable="false">
       <div class="spacer"></div>
       <div class="chip">✨ 魔法小镇</div>
     </div>
@@ -468,7 +473,7 @@ body::before{
   <section id="screenGame" class="screen">
 
     <div class="topbar">
-      <div class="logo">NICI<span class="star">★</span></div>
+      <img class="logo" src="assets/brand/logo.png" alt="NICI" draggable="false">
       <div class="spacer"></div>
       <div class="chip" id="chipDay">第 1 天</div>
       <div class="chip sun" id="chipLv">Lv.1</div>
@@ -602,68 +607,76 @@ body::before{
    ========================================================= */
 
 /* ---------------- 1. 角色数据 ---------------- */
-/* img: 生成的 NICI 风格立绘（musk-image 出图 -> tools/optimize_assets.py 裁切压缩）
-   body/mane 等色值保留，用于 UI 点缀（标签、滑条、飘字配色）*/
+/* 立绘来自 NICI 官网商品图（tools/make_sprites.py 抠底 + 归一化）。
+   body/mane 等色值按实物取色，用于 UI 点缀（标签、飘字配色）。*/
 const UNICORNS = [
   {
     id:'bubble', name:'泡泡', en:'Bubble',
     img:'assets/opt/unicorn_bubble.webp',
-    tag:'温柔', tagColor:'#6aa9e8',
-    body:'#ffffff', bodyShade:'#eef1f7', mane:'#f9bcd6', mane2:'#ffd3e4',
-    accent:'#ff8fc0', hoof:'#f7d3e2',
+    tag:'经典款', tagColor:'#e87ba4',
+    body:'#f7f2e7', bodyShade:'#e9e2d3', mane:'#e8628f', mane2:'#f4a3bd',
+    accent:'#e8457a', hoof:'#f0dde4',
     mark:'star', bow:false,
-    desc:'雪白的一只，粉色鬃毛像棉花糖。最安静，也最容易被哄开心。',
+    desc:'米白身体配亮粉鬃毛，身上绣着小星星。是这一系列里最经典的一只，也最容易被哄开心。',
     bonus:{ happyDecay:-0.012 }
   },
   {
-    id:'cloudy', name:'云宝', en:'Cloudy',
+    id:'cloudy', name:'蓝宝', en:'Sky',
     img:'assets/opt/unicorn_cloudy.webp',
-    tag:'毛茸茸', tagColor:'#8f7fd6',
-    body:'#d5e8f8', bodyShade:'#c0d8ee', mane:'#b79be0', mane2:'#d0bcf0',
-    accent:'#8f6fd0', hoof:'#c8b6ea',
-    mark:'cloud', bow:false,
-    desc:'蓝紫色绒毛的一只，云朵记号软软的。吃得多、长得快，是头小吃货。',
+    tag:'清爽', tagColor:'#3ab4cc',
+    body:'#f7f2e7', bodyShade:'#e9e2d3', mane:'#4cc5d9', mane2:'#7fddec',
+    accent:'#2e9fb8', hoof:'#dceef2',
+    mark:'rainbow', bow:false,
+    desc:'米白身体配青蓝色鬃毛，身上有一道小彩虹。配色最清爽的一只，吃得多、长得快。',
     bonus:{ feedGain:1.12 }
   },
   {
     id:'peachy', name:'桃桃', en:'Peachy',
     img:'assets/opt/unicorn_peachy.webp',
-    tag:'活泼', tagColor:'#f0688f',
-    body:'#ffb6c9', bodyShade:'#f79fb6', mane:'#ff93bb', mane2:'#ffc0d5',
-    accent:'#ff5c8a', hoof:'#ff9dbd',
-    mark:'heart', bow:'pink',
-    desc:'粉红色的小马，鬃毛里夹着蝴蝶结。尾巴一甩就停不下来。',
+    tag:'闪亮', tagColor:'#ef5f9c',
+    body:'#f7a8c4', bodyShade:'#e88fb0', mane:'#ffffff', mane2:'#ffe3ef',
+    accent:'#e0407f', hoof:'#f5c6d8',
+    mark:'hex', bow:false,
+    desc:'通体粉色亮片的撒糖款，配上雪白鬃毛。跑起来浑身闪，尾巴一甩就停不下来。',
     bonus:{ playGain:1.35 }
   },
   {
     id:'dreamy', name:'梦梦', en:'Dreamy',
     img:'assets/opt/unicorn_dreamy.webp',
-    tag:'梦幻', tagColor:'#7b68c8',
-    body:'#fbe7f0', bodyShade:'#f2d7e5', mane:'#9b7fd4', mane2:'#c3aeea',
-    accent:'#8a6fd0', hoof:'#cbb8ee',
-    mark:'diamond', bow:'purple',
-    desc:'淡粉色配紫色鬃毛，总在做梦。陪它玩的时候，生长度涨得特别快。',
+    tag:'梦幻', tagColor:'#9aa4c8',
+    body:'#8e9bb5', bodyShade:'#6f7c96', mane:'#f7c8dd', mane2:'#fde4ef',
+    accent:'#e8609b', hoof:'#f2d9e6',
+    mark:'gem', bow:false,
+    desc:'深灰亮片配粉色鬃毛，像夜里的星空。陪它玩的时候，生长度涨得特别快。',
     bonus:{ growthGain:1.2 }
   }
 ];
 const byId = id => UNICORNS.find(u => u.id === id);
 
+/* 素材版本号：更换立绘时 +1。
+   立绘的文件名不变，不加这个参数的话，浏览器（和老访客）会一直用缓存的旧图。*/
+const ASSET_V = 2;
+const spriteUrl = u => `${u.img}?v=${ASSET_V}`;
+
 /* ---------------- 2. 魔法礼品 ---------------- */
+/* 礼品插画：assets/gifts_opt/*.webp（musk-image 生成 -> tools/gen_gifts.py
+   -> tools/optimize_gifts.py 压缩）。e 字段保留 emoji 作为兜底。*/
 const GIFTS = [
-  {e:'🍀', n:'四叶幸运草', r:0, w:17, d:'在一片三叶草里找到的唯一一片。据说把它夹进书里，那一天都会很顺利。'},
-  {e:'☁️', n:'云朵棉花糖', r:0, w:16, d:'从最矮的那朵云上揪下来的一小块，咬一口会轻飘飘的。'},
-  {e:'🎀', n:'彩虹丝带', r:0, w:16, d:'系在鬃毛上，跑起来就会留下一条小彩虹。'},
-  {e:'🍭', n:'魔法棒棒糖', r:0, w:15, d:'含在嘴里，吹出来的泡泡会变成星星的形状。'},
-  {e:'🥕', n:'金胡萝卜', r:0, w:15, d:'比普通的草香一百倍。它闻到味道就会立刻跑过来。'},
-  {e:'🕯️', n:'月光蜡烛', r:0, w:12, d:'只在满月的夜里点燃，火光像被水洗过一样凉。'},
-  {e:'🔮', n:'梦幻水晶球', r:1, w:9,  d:'摇一摇会下雪。雪里有一座很小很小的镇子，仔细看，里面也有一只独角兽。'},
-  {e:'💎', n:'独角兽宝石', r:1, w:8,  d:'从角的根部慢慢结出的结晶，握在手里是温的。'},
-  {e:'🌈', n:'迷你彩虹', r:1, w:7,  d:'可以折起来放进口袋。展开的时候，天上就真的会挂起一条。'},
-  {e:'🎠', n:'旋转木马模型', r:1, w:6,  d:'上好发条就会自己转圈，音乐是那种听了会想哭的老调子。'},
-  {e:'👑', n:'独角兽小王冠', r:2, w:3,  d:'戴上它的那一刻，整个小镇的草都会变甜。'},
-  {e:'🌟', n:'永恒星光', r:2, w:2,  d:'从天上摘下来的一颗。它不会熄灭，你睡着的时候它会替你守着。'},
-  {e:'🦄', n:'黄金独角兽', r:2, w:1,  d:'传说中的身影。只有最耐心、最温柔的主人，才有机会见到它一次。'}
+  {k:'clover',   e:'🍀', n:'四叶幸运草', r:0, w:17, d:'在一片三叶草里找到的唯一一片。据说把它夹进书里，那一天都会很顺利。'},
+  {k:'cloud',    e:'☁️', n:'云朵棉花糖', r:0, w:16, d:'从最矮的那朵云上揪下来的一小块，咬一口会轻飘飘的。'},
+  {k:'ribbon',   e:'🎀', n:'彩虹丝带', r:0, w:16, d:'系在鬃毛上，跑起来就会留下一条小彩虹。'},
+  {k:'lollipop', e:'🍭', n:'魔法棒棒糖', r:0, w:15, d:'含在嘴里，吹出来的泡泡会变成星星的形状。'},
+  {k:'carrot',   e:'🥕', n:'金胡萝卜', r:0, w:15, d:'比普通的草香一百倍。它闻到味道就会立刻跑过来。'},
+  {k:'candle',   e:'🕯️', n:'月光蜡烛', r:0, w:12, d:'只在满月的夜里点燃，火光像被水洗过一样凉。'},
+  {k:'crystal',  e:'🔮', n:'梦幻水晶球', r:1, w:9,  d:'摇一摇会下雪。雪里有一座很小很小的镇子，仔细看，里面也有一只独角兽。'},
+  {k:'gem',      e:'💎', n:'独角兽宝石', r:1, w:8,  d:'从角的根部慢慢结出的结晶，握在手里是温的。'},
+  {k:'rainbow',  e:'🌈', n:'迷你彩虹', r:1, w:7,  d:'可以折起来放进口袋。展开的时候，天上就真的会挂起一条。'},
+  {k:'carousel', e:'🎠', n:'旋转木马模型', r:1, w:6,  d:'上好发条就会自己转圈，音乐是那种听了会想哭的老调子。'},
+  {k:'crown',    e:'👑', n:'独角兽小王冠', r:2, w:3,  d:'戴上它的那一刻，整个小镇的草都会变甜。'},
+  {k:'star',     e:'🌟', n:'永恒星光', r:2, w:2,  d:'从天上摘下来的一颗。它不会熄灭，你睡着的时候它会替你守着。'},
+  {k:'golden',   e:'🦄', n:'黄金独角兽', r:2, w:1,  d:'传说中的身影。只有最耐心、最温柔的主人，才有机会见到它一次。'}
 ];
+const giftImg = g => `assets/gifts_opt/${g.k}.webp?v=${ASSET_V}`;
 const RARITY = ['普通','稀有','传说'];
 const RARITY_CLASS = ['rb-0','rb-1','rb-2'];
 const pickGift = () => {
@@ -1027,7 +1040,7 @@ function flashBtn(btn){
 function renderPick(){
   el.pickGrid.innerHTML = UNICORNS.map(u=>`
     <div class="card" data-id="${u.id}">
-      <div class="pv"><img class="uni-img" src="${u.img}" alt="${u.name}" draggable="false"></div>
+      <div class="pv"><img class="uni-img" src="${spriteUrl(u)}" alt="${u.name}" draggable="false"></div>
       <span class="tag" style="background:${u.tagColor}1f;color:${u.tagColor}">${u.tag}</span>
       <h3>${u.name}</h3>
       <p>${u.desc}</p>
@@ -1061,7 +1074,7 @@ function chooseUnicorn(id){
 function renderStable(){
   const u = byId(S.chosen);
   el.uniWrap.innerHTML =
-    `<img class="uni uni-img" src="${u.img}" alt="${u.name}" draggable="false">`;
+    `<img class="uni uni-img" src="${spriteUrl(u)}" alt="${u.name}" draggable="false">`;
   // 等级缩放在 updateUni() 里合成进 transform 了，这里不要再设 scale，
   // 否则 CSS scale 会和 transform 的 scale() 叠乘，等级越高越离谱。
   resetAnim();
@@ -1271,7 +1284,7 @@ function checkGrowth(){
 function revealNext(){
   const g = pendingGifts.shift();
   if(!g) return;
-  el.rvEm.textContent = g.e;
+  el.rvEm.innerHTML = `<img class="gimg-big" src="${giftImg(g)}" alt="${g.n}" draggable="false">`;
   el.rvName.textContent = g.n;
   el.rvDesc.textContent = g.d;
   el.rvRibbon.textContent = RARITY[g.r];
@@ -1296,7 +1309,7 @@ function renderGiftBox(){
     const c = S.gifts[g.n] || 0;
     return `<div class="gsl r${g.r} ${c?'has':'locked'}" data-i="${i}">
       <span class="glow"></span>
-      ${c ? g.e : '❔'}
+      ${c ? `<img class="gimg" src="${giftImg(g)}" alt="${g.n}" draggable="false">` : '❔'}
       ${c > 1 ? `<span class="cnt">×${c}</span>` : ''}
     </div>`;
   }).join('');
@@ -1305,7 +1318,9 @@ function renderGiftBox(){
     s.addEventListener('click', ()=>{
       SFX.click();
       const g = GIFTS[+s.dataset.i];
-      el.giftDetail.innerHTML = `${g.e} <b>${g.n}</b> · <span style="color:${['#7c8aa0','#4a7fd4','#c9920c'][g.r]}">${RARITY[g.r]}</span><br>${g.d}`;
+      el.giftDetail.innerHTML =
+        `<img class="gdetail-img" src="${giftImg(g)}" alt="${g.n}" draggable="false">` +
+        `<b>${g.n}</b> · <span style="color:${['#7c8aa0','#4a7fd4','#c9920c'][g.r]}">${RARITY[g.r]}</span><br>${g.d}`;
     });
   });
 }
