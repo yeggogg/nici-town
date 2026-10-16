@@ -340,6 +340,10 @@ body::before{
   box-shadow:var(--shadow);
   transition:transform .2s cubic-bezier(.3,1.3,.5,1), box-shadow .2s, border-color .2s;
   text-align:center;
+  /* 让卡片成为纵向弹性容器，好把「选择」按钮钉到底部。
+     四只的简介行数不一样（有的 2 行、有的 3 行），
+     按钮若跟着文字走就会高低不齐。 */
+  display:flex;flex-direction:column;
 }
 .card:hover{transform:translateY(-5px);box-shadow:0 16px 36px rgba(120,95,160,.2)}
 .card:active{transform:scale(.97)}
@@ -351,7 +355,10 @@ body::before{
 .card .tag{font-size:10.5px;font-weight:800;letter-spacing:.5px;padding:3px 9px;border-radius:999px;display:inline-block;margin-bottom:5px}
 .card p{margin:0;font-size:11px;color:var(--ink-soft);font-weight:600;line-height:1.55}
 .card .pick{
-  margin-top:9px;font-size:11.5px;font-weight:900;letter-spacing:1px;
+  /* margin-top:auto 把按钮推到卡片底部 —— 简介行数不同的卡片，
+     按钮也能落在同一条线上。 */
+  margin-top:auto;padding-top:6px;
+  font-size:11.5px;font-weight:900;letter-spacing:1px;
   border-radius:12px;padding:6px 0;
   background:linear-gradient(90deg,#ffd6e8,#e2d6ff);
   color:#7a5fa8;
@@ -747,8 +754,8 @@ const pickGift = () => {
    正常档参考：一整天慢慢喂、慢慢涨，一天大概升 1 级。
    demo 档参考：主动喂草约 25~35 秒升一级，5 分钟能演示 8~10 次升级。*/
 const CFG = {
-  HAPPY_DECAY   : 0.35,    // 开心度每秒自然衰减 (正常 0.055)
-  HUNGRY_EXTRA  : 0.30,    // 饱食度低于阈值时额外的掉心情速度 (正常 0.045)
+  HAPPY_DECAY   : 1.20,    // 开心度每秒自然衰减 (正常 0.055)
+  HUNGRY_EXTRA  : 0.80,    // 饱食度低于阈值时额外的掉心情速度 (正常 0.045)
   HUNGRY_LINE   : 30,
   FULL_DECAY    : 0.40,    // 饱食度每秒衰减 (正常 0.05)
   CONTENT_HAPPY : 0.08,    // 吃饱时每秒回一点心情 (正常 0.012)
@@ -766,17 +773,17 @@ const CFG = {
   PLAY_HAPPY    : 26,
   PLAY_FULL_COST: 7,
 
-  GRASS_START   : 20,      // (正常 12)
-  GRASS_MAX     : 45,      // (正常 40)
-  GRASS_EVERY   : 3,       // 每 N 秒长一根草 (正常 14)
+  GRASS_START   : 24,      // (正常 12)
+  GRASS_MAX     : 60,      // (正常 40)
+  GRASS_EVERY   : 2.5,     // 每 N 秒长一根草 (正常 14)
   DAY_GRASS_GIFT: 6,
 
   /* 抚摸/玩耍改用**冷却恢复**，而不是"每天限几次"。
      5 分钟的演示里，每日限制等于把按钮锁死，玩不起来。
      现在是：用完扣一次，之后每 N 秒自动补一次，补到上限为止。
      (正常档：PET_MAX 1 / PLAY_MAX 2，次日才恢复) */
-  PET_MAX   : 5,   PET_REGEN  : 4,   // 每 4 秒回一次抚摸
-  PLAY_MAX  : 5,   PLAY_REGEN : 6,   // 每 6 秒回一次玩耍
+  PET_MAX   : 5,   PET_REGEN  : 1.2,   // 每 1.2 秒回一次抚摸
+  PLAY_MAX  : 5,   PLAY_REGEN : 1.8,   // 每 1.8 秒回一次玩耍
 };
 
 /* 成长曲线：等级越高，升级需要的生长度越多。
