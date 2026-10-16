@@ -912,7 +912,23 @@ function freshState(){
     lastTick:Date.now()
   };
 }
+/* ============ 存档开关 ============
+   演示模式：**不记录进度**。每次打开或刷新都是从零开始的全新一局，
+   不用担心中途留下的状态影响下一场演示。
+
+   要恢复存档，把 PERSIST 改成 true 即可 —— save/load 的调用点都还在，
+   不需要改动别处。
+
+   注意 load() 也必须一起挡住：只让 save() 不写的话，
+   之前留下的旧存档仍然会被读出来，等于没生效。*/
+const PERSIST = false;
+
 function load(){
+  if(!PERSIST){
+    // 顺手清掉之前留下的存档，避免它一直躺在 localStorage 里
+    try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+    return freshState();
+  }
   try{
     const raw = localStorage.getItem(SAVE_KEY);
     if(!raw) return freshState();
@@ -930,6 +946,7 @@ function load(){
   }catch(e){ return freshState(); }
 }
 function save(){
+  if(!PERSIST) return;    // 演示模式：不落盘
   try{ S.lastTick = Date.now(); localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){}
 }
 
@@ -1232,24 +1249,31 @@ function updateUni(now, dt){
   if(ANIM.act){
     const p = Math.min(1, (now - ANIM.act.t0) / ANIM.act.dur);
     const k = Math.sin(p * Math.PI);          // 0→1→0 的包络
+    /* 动作幅度随状态缩放：不开心/饿的时候，弹跳和摇晃都变得软绵绵，
+       显得无精打采。和走路用的是同一个 vigorFactor，行为才一致。
+       下限 0.35 —— 再低动作就看不出来了，那是"卡住"不是"没精神"。
+       注意：只缩**摆动**的部分，不缩姿势偏移（比如吃草时低头那 -3 度），
+       否则它会连头都不肯低。*/
+    const av = Math.max(0.35, vigorFactor(S.happy, S.full));
     switch(ANIM.act.t){
       case 'hop':                              // 喂草：轻轻一跳
-        actY   = -Math.abs(Math.sin(p*Math.PI*2)) * 26 * (1 - p*0.35);
-        sy     = 1 + k*0.06;
-        sx     = 1 - k*0.05;
+        actY   = -Math.abs(Math.sin(p*Math.PI*2)) * 26 * av * (1 - p*0.35);
+        sy     = 1 + k*0.06*av;
+        sx     = 1 - k*0.05*av;
         break;
       case 'cheer':                            // 玩耍/收到礼物：连蹦带摇
-        actY   = -Math.abs(Math.sin(p*Math.PI*4)) * 30 * (1 - p*0.25);
-        actRot = Math.sin(p*Math.PI*6) * 7;
-        sy     = 1 + k*0.08;
-        sx     = 1 - k*0.06;
+        actY   = -Math.abs(Math.sin(p*Math.PI*4)) * 30 * av * (1 - p*0.25);
+        actRot = Math.sin(p*Math.PI*6) * 7 * av;
+        sy     = 1 + k*0.08*av;
+        sx     = 1 - k*0.06*av;
         break;
       case 'shake':                            // 抚摸：左右蹭
-        actRot = Math.sin(p*Math.PI*8) * 7 * (1 - p);
+        actRot = Math.sin(p*Math.PI*8) * 7 * av * (1 - p);
         break;
       case 'eat':                              // 吃草：低头点动
-        actRot = -3 + Math.sin(p*Math.PI*6) * 2.2;
-        actY   = 2 + Math.sin(p*Math.PI*6) * 1.5;
+        // -3 是"低头"这个姿势本身，不缩放；后面的点动幅度才随状态变
+        actRot = -3 + Math.sin(p*Math.PI*6) * 2.2 * av;
+        actY   = 2 + Math.sin(p*Math.PI*6) * 1.5 * av;
         break;
     }
   }
