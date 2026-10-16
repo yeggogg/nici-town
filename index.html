@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>NICI 独角兽养成 · 魔法小镇</title>
 <style>
+/* 手机上快速连点按钮会被识别成"双击缩放"，整个界面被放大。
+   touch-action:manipulation 关掉双击缩放，但**保留双指缩放**
+   （不像 user-scalable=no 那样把无障碍功能一起砍掉）。 */
+html{touch-action:manipulation}
 :root{
   --ink:#4a3b5c;
   --ink-soft:#8a7a9e;
@@ -374,6 +378,14 @@ body::before{
   backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
 }
 .modal.on{display:flex;animation:fadeIn .22s ease}
+
+/* 弹窗打开时锁住背景页面的滚动。
+   不锁的话，手指在弹窗上滑动会让**背景页面**跟着滚（页面本身有 3000 多 px），
+   移动端的悬浮滚动条就会闪一下 —— 这正是"礼品弹窗一出来，
+   下面出现一条拖动条"的来源。
+   overscroll-behavior:contain 顺带挡掉滚动链（滑到底不带动外层）。 */
+body.modal-open{overflow:hidden}
+.modal{overscroll-behavior:contain}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .sheet{
   position:relative;width:100%;max-width:400px;max-height:84vh;overflow-y:auto;
@@ -607,7 +619,8 @@ body::before{
 </div>
 
 <!-- ========== 礼品柜 ========== -->
-<div class="modal" id="modalGift">
+<!-- data-nobg：只点按钮能关，点背景不关（避免误触关掉） -->
+<div class="modal" id="modalGift" data-nobg>
   <div class="sheet">
     <button class="closex" data-close>✕</button>
     <h2>🎁 魔法礼品柜</h2>
@@ -618,7 +631,8 @@ body::before{
 </div>
 
 <!-- ========== 新礼物揭晓 ========== -->
-<div class="modal" id="modalReveal">
+<!-- data-nobg：抽中礼物是高光时刻，只能点「收下它」继续 -->
+<div class="modal" id="modalReveal" data-nobg>
   <div class="sheet">
     <div class="bigGift">
       <span class="ribbon rb-0" id="rvRibbon">普 通</span>
@@ -668,7 +682,10 @@ body::before{
 
 /* ---------------- 1. 角色数据 ---------------- */
 /* 立绘来自 NICI 官网商品图（tools/make_sprites.py 抠底 + 归一化）。
-   body/mane 等色值按实物取色，用于 UI 点缀（标签、飘字配色）。*/
+   body/mane 等色值按实物取色，用于 UI 点缀（标签、飘字配色）。
+   mouth / fur 由 tools/sample_fur.py 从立绘上实测而来 ——
+   嘴型要随心情变，就得先用一块毛色补丁盖住原嘴再画新的，
+   所以补丁色必须和立绘上的毛色一致，不然会看出一块疤。*/
 const UNICORNS = [
   {
     id:'bubble', name:'泡泡', en:'Bubble',
@@ -715,8 +732,45 @@ const byId = id => UNICORNS.find(u => u.id === id);
 
 /* 素材版本号：更换立绘时 +1。
    立绘的文件名不变，不加这个参数的话，浏览器（和老访客）会一直用缓存的旧图。*/
-const ASSET_V = 2;
+const ASSET_V = 3;
 const spriteUrl = u => `${u.img}?v=${ASSET_V}`;
+
+/* ============ 心情表情 ============
+   每只独角兽有 3 张表情图（assets/expr/<id>_<mood>.webp），
+   由 tools/gen_expressions.py 用 musk-image 的改图端点生成 ——
+   以当前立绘为参考图，只改嘴和眼神。
+
+   为什么不用 CSS 叠加嘴型：先试过"毛色补丁盖住原嘴 + 画新弧线"，
+   但补丁在照片级布偶上就是一块纯色圆斑（粉毛上像贴了创可贴），
+   比直接生成难看太多，已放弃。
+
+   分档和 MOODS 对齐：happy ≥70、calm ≥40、sad 其余。*/
+const EXPR_TIERS = [['happy', 70], ['calm', 40], ['sad', 0]];
+const exprMood  = h => (EXPR_TIERS.find(([, min]) => h >= min) || EXPR_TIERS[2])[0];
+const exprUrl   = (u, mood) => `assets/expr/${u.id}_${mood}.webp?v=${ASSET_V}`;
+
+let curExpr = null;   // 当前已应用的表情，用来避免每帧重设 img.src
+
+/* 按心情切换立绘。
+   只在档位真的变了才换 src —— 每帧重设会让图片闪一下、也白费流量。*/
+function updateExpression(){
+  const u = byId(S.chosen);
+  const img = el.uniWrap.querySelector('.uni-img');
+  if(!img || !u) return;
+  const mood = exprMood(S.happy);
+  if(curExpr === mood) return;
+  curExpr = mood;
+  img.src = exprUrl(u, mood);
+}
+
+/* 预加载三张表情，免得第一次切档时闪白。
+   用 Image() 提前塞进浏览器缓存即可，不插进 DOM。*/
+function preloadExpressions(u){
+  for(const [mood] of EXPR_TIERS){
+    const im = new Image();
+    im.src = exprUrl(u, mood);
+  }
+}
 
 /* ---------------- 2. 魔法礼品 ---------------- */
 /* 礼品插画：assets/gifts_opt/*.webp（musk-image 生成 -> tools/gen_gifts.py
@@ -944,12 +998,30 @@ function toast(msg){
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>el.toast.classList.remove('on'), 2100);
 }
-function openModal(m){ m.classList.add('on'); }
-function closeModal(m){ m.classList.remove('on'); }
+/* 弹窗开关。
+   打开时给 body 加 modal-open 锁住背景滚动 ——
+   不加的话，手指在弹窗上滑动会让背后的长页面跟着滚，
+   移动端就会闪出一条滚动条（就是"礼品弹窗出现时下面那条拖动条"）。 */
+function anyModalOpen(){
+  return !!document.querySelector('.modal.on');
+}
+function openModal(m){
+  m.classList.add('on');
+  document.body.classList.add('modal-open');
+}
+function closeModal(m){
+  m.classList.remove('on');
+  if(!anyModalOpen()) document.body.classList.remove('modal-open');
+}
 document.querySelectorAll('[data-close]').forEach(b=>{
   b.addEventListener('click', ()=> closeModal(b.closest('.modal')));
 });
+/* 点背景关闭弹窗。
+   但**礼物相关的弹窗不在此列** —— 那两个用 data-nobg 标了，
+   只能点按钮关。原因：抽中礼物的瞬间是演示的高光时刻，
+   手指在屏幕上一滑就关掉太可惜了，也容易误触。 */
 document.querySelectorAll('.modal').forEach(m=>{
+  if(m.hasAttribute('data-nobg')) return;
   m.addEventListener('click', e=>{ if(e.target === m) closeModal(m); });
 });
 
@@ -1006,10 +1078,25 @@ const ANIM = {
   act: null,             // 临时动作 {t, t0, dur, lockMove}
 };
 const WALK = {
-  SPEED : 13,            // 每秒移动的舞台宽度百分比
+  SPEED : 13,            // 每秒移动的舞台宽度百分比（状态好时的基准）
   PAUSE : [1500, 4200],  // 每次停下歇多久（毫秒）
   STEP_HZ: 8.5,          // 每秒迈步频率
+  /* 状态不好时会变慢、变懒。系数下限不要压到 0 —— 那样它就完全不动了，
+     看起来像卡住而不是"没精神"。 */
+  SLOW_MIN: 0.32,
+  PAUSE_MIN: 0.45,       // 停歇时间的倍率下限（越低歇得越久）
 };
+
+/* 状态 -> 走路速度倍率。
+   越不开心、越饿，走得越慢、歇得越久。
+   取两项里更差的那一个（而不是平均），这样"很饿但心情还行"也能看出来没力气。 */
+function vigorFactor(happy, full){
+  const h = Math.max(0, Math.min(1, happy / 100));
+  const f = Math.max(0, Math.min(1, full / 100));
+  const worst = Math.min(h, f);
+  // 0.32（状态很差）→ 1.0（状态好）
+  return WALK.SLOW_MIN + (1 - WALK.SLOW_MIN) * worst;
+}
 /* 可走范围按实际渲染尺寸算 —— 独角兽差不多占舞台宽的四成，
    若按固定的 15%~85% 走，靠边时会有一截伸出画面被 overflow 裁掉。
    抽成纯函数便于单独验证。 */
@@ -1084,16 +1171,23 @@ function updateUni(now, dt){
   const busy = !!(ANIM.act && ANIM.act.lockMove);   // 吃草/开心时站着别动
 
   if(!REDUCED && !busy){
+    /* 状态不好就走得慢、歇得久。
+       每帧按当前心情/饱食度算一次 —— 独角兽边走边掉数值，
+       所以速度应该连续变化，而不是只在某个阈值上突然变。 */
+    const vigor = vigorFactor(S.happy, S.full);
+
     if(ANIM.moving){
       const dx = ANIM.target - ANIM.x;
-      const stepLen = WALK.SPEED * dt;
+      const stepLen = WALK.SPEED * vigor * dt;
       if(Math.abs(dx) <= stepLen){
         ANIM.x = ANIM.target;
         ANIM.moving = false;
-        ANIM.waitUntil = now + WALK.PAUSE[0] + Math.random()*(WALK.PAUSE[1]-WALK.PAUSE[0]);
+        // 没精神时歇得更久
+        const pauseMul = WALK.PAUSE_MIN + (1 - WALK.PAUSE_MIN) * vigor;
+        ANIM.waitUntil = now + (WALK.PAUSE[0] + Math.random()*(WALK.PAUSE[1]-WALK.PAUSE[0])) * pauseMul;
       }else{
         ANIM.x += Math.sign(dx) * stepLen;
-        ANIM.step += dt * WALK.STEP_HZ;
+        ANIM.step += dt * WALK.STEP_HZ * vigor;   // 步子也迈得慢
       }
       // 兜底夹紧：目标正常都取自 BOUNDS，但一旦有别的路径写进越界值，
       // 这里能保证它不会走出画面（宁可少走一点）
@@ -1215,8 +1309,13 @@ function chooseUnicorn(id){
 
 function renderStable(){
   const u = byId(S.chosen);
+  // 初始就按当前心情选表情，避免先显示"开心"再跳成"难过"
+  curExpr = null;
+  const mood = exprMood(S.happy);
+  curExpr = mood;
   el.uniWrap.innerHTML =
-    `<img class="uni uni-img" src="${spriteUrl(u)}" alt="${u.name}" draggable="false">`;
+    `<img class="uni uni-img" src="${exprUrl(u, mood)}" alt="${u.name}" draggable="false">`;
+  preloadExpressions(u);   // 另外两张提前进缓存，切档时不闪
   // 等级缩放在 updateUni() 里合成进 transform 了，这里不要再设 scale，
   // 否则 CSS scale 会和 transform 的 scale() 叠乘，等级越高越离谱。
   resetAnim();
@@ -1279,6 +1378,7 @@ function render(){
 
   // 心情
   const m = moodOf(S.happy);
+  updateExpression();   // 立绘换成对应心情的表情（内部已去重）
   if(changed('mood', m.t)){
     el.moodTxt.textContent = m.t;
     el.moodBox.firstChild.textContent = m.e + ' ';
@@ -1597,20 +1697,24 @@ document.addEventListener('visibilitychange', ()=>{ if(document.hidden) save(); 
 /* ---------------- 18. 启动 ---------------- */
 
 /* 播放开场动画。
-   三个要注意的点：
+   几个必须注意的点：
    1. 必须 muted —— 否则浏览器会以"未经用户交互"为由拒绝自动播放。
-   2. 结束/跳过/出错三条路径都要能进入游戏，且只能进一次，
-      所以用一个 done 标志兜住，避免 play 和 ended 重复触发。
-   3. 视频加载失败不该把玩家挡在门外，直接跳过。 */
+   2. 结束/跳过/出错三条路径都要能进入游戏，且**只能进一次**，
+      用一个 done 标志兜住，避免 play 和 ended 重复触发。
+   3. 加载失败不该把玩家挡在门外，直接跳过。
+   4. 「减弱动态效果」下**不自动播**，但仍给一个点击播放的机会 ——
+      不能整个跳过。iOS 低电量模式会自动打开这个偏好，
+      早先写成"直接跳过"，结果手机上永远看不到开场。 */
 function playIntro(onDone){
-  let done = false;
+  let done = false, started = false, safety = null;
   const finish = ()=>{
     if(done) return;
     done = true;
+    if(safety) clearTimeout(safety);
     try { sessionStorage.setItem('nici.intro', '1'); } catch(e){}
     el.intro.classList.add('out');
     setTimeout(()=>{
-      el.intro.classList.remove('on','out');
+      el.intro.classList.remove('on','out','needtap');
       try { el.introVid.pause(); el.introVid.removeAttribute('src'); el.introVid.load(); } catch(e){}
       onDone();
     }, 560);
@@ -1618,31 +1722,55 @@ function playIntro(onDone){
 
   el.intro.classList.add('on');
   el.introSkip.addEventListener('click', finish, {once:true});
-  el.introVid.addEventListener('ended', finish, {once:true});
   el.introVid.addEventListener('error', finish, {once:true});
-  // 兜底：某些浏览器在节能模式下会卡住播放，别让玩家干等
-  setTimeout(finish, 9000);
 
-  /* 自动播放被拦时的处理。
-     部分浏览器（省电模式、无痕、或用户设了禁止自动播放）会拒绝 play()，
-     如果这时直接进游戏，玩家就永远看不到这段开场 —— 所以改成
-     "等一次点击再播"：点击本身就是用户手势，能解锁播放。 */
-  let unlocked = false;
-  const p = el.introVid.play();
-  if(p && p.catch) p.catch(()=>{
-    if(unlocked || done) return;
-    unlocked = true;
+  /* 一旦真的开始播了，就撤掉兜底计时器 —— 让视频自然放完。
+     早先固定 9 秒兜底：移动网络下 3.4MB 的视频常常还在缓冲就被跳过了。 */
+  el.introVid.addEventListener('playing', ()=>{
+    started = true;
+    if(safety){ clearTimeout(safety); safety = null; }
+    el.intro.classList.remove('needtap');
+    el.introSkip.textContent = '跳过 ›';
+  }, {once:true});
+
+  el.introVid.addEventListener('ended', finish, {once:true});
+
+  const armFallback = (ms)=>{
+    if(safety) clearTimeout(safety);
+    safety = setTimeout(()=>{ if(!started) finish(); }, ms);
+  };
+
+  // 点击整屏开始播放（也用作"减弱动态效果"下的手动触发）
+  const tapToPlay = ()=>{
+    el.intro.classList.remove('needtap');
+    el.introSkip.textContent = '跳过 ›';
+    armFallback(12000);
+    const q = el.introVid.play();
+    if(q && q.catch) q.catch(()=>{});
+  };
+  el.intro.addEventListener('click', ev=>{
+    if(ev.target.closest('.skip')) return;   // 点"跳过"就跳过，别再播一遍
+    tapToPlay();
+  });
+
+  if(REDUCED){
+    /* 尊重"减弱动态效果"：不自动播放，改为等一次点击。
+       这样既没有不请自来的动画，玩家又不会错过开场。 */
     el.intro.classList.add('needtap');
     el.introSkip.textContent = '点击播放 ›';
-    el.intro.addEventListener('click', ev=>{
-      // 点在"跳过"上就让它跳过，别又去播一遍
-      if(ev.target.closest('.skip')) return;
-      el.intro.classList.remove('needtap');
-      el.introSkip.textContent = '跳过 ›';
-      const q = el.introVid.play();
-      if(q && q.catch) q.catch(()=>{});   // 还是失败就交由 9 秒兜底
-    }, {once:true});
-  });
+    armFallback(8000);      // 一直不点就走人
+  }else{
+    el.introVid.preload = 'auto';
+    armFallback(9000);
+    const p = el.introVid.play();
+    if(p && p.catch) p.catch(()=>{
+      // 自动播放被拦（省电/无痕/用户设置）—— 给个点击播放的提示
+      if(done) return;
+      el.intro.classList.add('needtap');
+      el.introSkip.textContent = '点击播放 ›';
+      armFallback(8000);
+    });
+  }
 }
 
 (function boot(){
@@ -1667,7 +1795,10 @@ function playIntro(onDone){
     requestAnimationFrame(tick);
   }
 
-  if(playedIntro || !el.intro || REDUCED){
+  // 注意：这里**不**因 REDUCED 跳过开场 —— 那种情况下 playIntro 内部
+  // 会改成"等一次点击再播"。整个跳过会导致 iOS 低电量模式（会自动开启
+  // 减弱动态效果）下永远看不到开场。
+  if(playedIntro || !el.intro){
     startGame();
   }else{
     playIntro(startGame);
