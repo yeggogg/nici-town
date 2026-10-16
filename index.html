@@ -511,9 +511,16 @@ body.modal-open{overflow:hidden}
 </head>
 <body>
 
-<!-- 开场动画（seedance 生成，首帧由立绘合成到草地锁定造型）-->
+<!-- 开场动画（seedance 生成，首帧由立绘合成到草地锁定造型）。
+
+     注意 ?v=2：换视频时**必须**把这个号 +1，否则老访客会一直用缓存里的旧文件。
+
+     还要注意视频必须是 faststart 的（moov 索引在文件开头）。
+     最初那版 moov 在 99.8% 的位置，浏览器得把 3.4MB 整包下完才能开始播，
+     表现就是"点了播放却定在第一帧"。
+     重新封装：ffmpeg -i in.mp4 -c copy -movflags +faststart out.mp4 -->
 <div class="intro" id="intro">
-  <video id="introVid" src="assets/video/intro_unicorn.mp4"
+  <video id="introVid" src="assets/video/intro_unicorn.mp4?v=2"
          muted playsinline preload="auto"></video>
   <button class="skip" id="introSkip">跳过 ›</button>
 </div>
@@ -1169,6 +1176,13 @@ function resetAnim(){
     step:0, act:null,
   });
 }
+/* 只清动作，**不动站位**。
+   升级时要重建立绘（换表情/尺寸），但不能把它瞬移回画面中央 ——
+   所以升级路径用这个，而不是 resetAnim。*/
+function resetActOnly(){
+  ANIM.act = null;
+  ANIM.step = 0;
+}
 function uniAct(type, dur, lockMove=false){
   if(REDUCED) return;
   ANIM.act = { t:type, t0:performance.now(), dur: dur || ACT_DUR[type] || 600, lockMove };
@@ -1331,7 +1345,10 @@ function chooseUnicorn(id){
   toast(`${byId(id).name} 来到你身边啦 💕`);
 }
 
-function renderStable(){
+/* 重建立绘。
+   keepPlace=true 时**保留当前站位**（升级就属于这种：体型长大，
+   但应该留在原地长大，而不是闪现回画面中央）。*/
+function renderStable(keepPlace=false){
   const u = byId(S.chosen);
   // 初始就按当前心情选表情，避免先显示"开心"再跳成"难过"
   curExpr = null;
@@ -1342,7 +1359,7 @@ function renderStable(){
   preloadExpressions(u);   // 另外两张提前进缓存，切档时不闪
   // 等级缩放在 updateUni() 里合成进 transform 了，这里不要再设 scale，
   // 否则 CSS scale 会和 transform 的 scale() 叠乘，等级越高越离谱。
-  resetAnim();
+  if(keepPlace) resetActOnly(); else resetAnim();
 }
 
 /* ---------------- 11. 每日重置 ---------------- */
@@ -1552,7 +1569,10 @@ function checkGrowth(){
   S.giftTotal++;
   pendingGifts.push(g);
 
-  renderStable();
+  /* 重建立绘时**保留站位** —— 升级的观感应该是"在原地长大"。
+     若用 resetAnim（它会把 ANIM.x 设回 50），玩偶就会瞬移回画面中央，
+     看起来像闪了一下。 */
+  renderStable(true);
   popUni('cheer', 1150);   // 升级时长大了，先高兴一下
   confetti(30);
   SFX.gift(); buzz([22,60,22]);

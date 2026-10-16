@@ -71,13 +71,36 @@ def main() -> None:
         return
 
     # 找出本地比远端多的提交
-    log = git("log", "--format=%H%x00%s%x00%b", f"{parent}..{head}").decode("utf-8", "replace")
-    if not log.strip():
-        print(f"远端 {parent[:9]} 与本地 {head[:9]} 之间没有新提交")
+    #
+    # 注意：远端那个提交是**上一次 API 推送时在服务端重建的**，
+    # 本机并没有这个对象 —— 直接 `git log <远端sha>..HEAD` 会报
+    # "Invalid revision range"。所以改成用 **tree 反查**：
+    # 远端 tree 一定等于本地某个提交的 tree（内容相同），拿那个当差异基准。
+    remote_commit = api("GET", f"/repos/{OWNER}/{REPO}/git/commits/{parent}", token)
+    remote_tree = remote_commit["tree"]["sha"]
+
+    local_pairs = git("log", "--format=%H %T", "-200", head).decode().split()
+    pairs = list(zip(local_pairs[0::2], local_pairs[1::2]))
+    base = next((h for h, t in pairs if t == remote_tree), None)
+
+    if base is None:
+        raise SystemExit(
+            f"本地找不到 tree 为 {remote_tree[:9]} 的提交。\n"
+            "说明远端有本地没有的内容，需要先拉取（git fetch）再推。"
+        )
+    print(f"差异基准（本地 {base[:9]} ≡ 远端 {parent[:9]} 的 tree）")
+
+    if base == head:
+        print("内容已经一致，无需推送")
         return
 
-    # 本次要动的文件（相对父提交）
-    name_status = git("diff", "--name-status", parent, head).decode("utf-8", "replace")
+    log = git("log", "--format=%H%x00%s%x00%b", f"{base}..{head}").decode("utf-8", "replace")
+    if not log.strip():
+        print("没有新提交")
+        return
+
+    # 本次要动的文件（相对基准提交）
+    name_status = git("diff", "--name-status", base, head).decode("utf-8", "replace")
     changes = []
     for line in name_status.strip().splitlines():
         parts = line.split("\t")
