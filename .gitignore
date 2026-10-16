@@ -1,0 +1,14 @@
+# ---- 生成过程的中间产物（体积大，游戏不引用）----
+generated/
+assets/*.png
+
+# ---- 接口响应缓存 ----
+# 内含预签名的 S3 URL，会暴露内部域名与 AWS 账号，不要公开
+assets/_last_response.json
+assets/opt/_last_response.json
+**/_last_response.json
+
+# ---- 本地配置 ----
+.claude/
+*.pyc
+__pycache__/

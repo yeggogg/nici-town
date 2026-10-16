@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NICI 独角兽养成 · 魔法小镇</title>
+<style>
+:root{
+  --ink:#4a3b5c;
+  --ink-soft:#8a7a9e;
+  --card:#ffffff;
+  --line:rgba(120,95,150,.14);
+  --shadow:0 10px 30px rgba(120,95,160,.13), 0 2px 6px rgba(120,95,160,.07);
+  --pink:#ff7fb2;
+  --leaf:#5fc48b;
+  --sky1:#dff0ff; --sky2:#ffeaf4; --sky3:#eae3ff;
+  --radius:22px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:"Segoe UI Variable Display","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+  color:var(--ink);
+  background:
+    radial-gradient(1200px 700px at 15% -10%, #fff6fb 0%, transparent 60%),
+    radial-gradient(1000px 600px at 90% 0%, #eaf6ff 0%, transparent 55%),
+    linear-gradient(170deg,var(--sky1) 0%, var(--sky2) 48%, var(--sky3) 100%);
+  background-attachment:fixed;
+  min-height:100%;
+  overflow-x:hidden;
+  user-select:none;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(255,255,255,.7) 0 60px, transparent 61px),
+    radial-gradient(circle at 78% 18%, rgba(255,255,255,.55) 0 44px, transparent 45px),
+    radial-gradient(circle at 60% 72%, rgba(255,255,255,.5) 0 70px, transparent 71px);
+  filter:blur(2px);
+  opacity:.7;
+}
+
+/* ============ 布局 ============ */
+.wrap{
+  position:relative;z-index:1;
+  max-width:520px;margin:0 auto;
+  padding:14px 14px calc(22px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;gap:12px;
+  min-height:100vh;
+}
+
+/* ============ 顶栏 ============ */
+.topbar{
+  display:flex;align-items:center;gap:10px;
+  background:rgba(255,255,255,.72);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.9);
+  border-radius:var(--radius);
+  padding:10px 14px;
+  box-shadow:var(--shadow);
+}
+.logo{
+  display:flex;align-items:center;
+  font-weight:900;font-size:19px;letter-spacing:.5px;
+  color:#f04438;font-style:italic;
+}
+.logo .star{
+  width:15px;height:15px;margin-left:3px;border-radius:50%;
+  background:#f04438;color:#fff;font-size:10px;line-height:15px;text-align:center;
+  font-style:normal;transform:translateY(-6px);
+}
+.topbar .title{font-size:13px;font-weight:700;color:var(--ink-soft);letter-spacing:.3px}
+.topbar .spacer{flex:1}
+.chip{
+  font-size:12px;font-weight:700;
+  background:linear-gradient(180deg,#fff,#f6efff);
+  border:1px solid var(--line);border-radius:999px;
+  padding:5px 11px;color:var(--ink);
+  white-space:nowrap;
+}
+.chip.sun{color:#e8930c;border-color:rgba(255,190,60,.35);background:linear-gradient(180deg,#fffdf3,#fff3d6)}
+.iconbtn{
+  width:34px;height:34px;flex:0 0 auto;
+  display:grid;place-items:center;
+  border:1px solid var(--line);background:#fff;border-radius:12px;
+  font-size:16px;cursor:pointer;color:var(--ink);
+  transition:transform .15s, box-shadow .15s;
+}
+.iconbtn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(120,95,160,.16)}
+.iconbtn:active{transform:scale(.94)}
+
+/* ============ 舞台 ============ */
+.stage{
+  position:relative;
+  border-radius:28px;
+  overflow:hidden;
+  /* 场景图铺满，渐变只作为图片未加载完时的兜底 */
+  background:linear-gradient(180deg,#bfe4ff 0%,#e8f4ff 45%,#cdeeb0 45.2%,#a8dd8c 100%) center bottom / cover no-repeat;
+  border:1px solid rgba(255,255,255,.9);
+  box-shadow:var(--shadow);
+  min-height:clamp(292px,44vh,352px);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:flex-end;
+  padding-bottom:8px;
+}
+.stage.has-scene{
+  background-image:url("assets/opt/scene_meadow.webp");
+  background-position:center bottom;
+  background-size:cover;
+  background-repeat:no-repeat;
+}
+
+/* 场景图的上下渐晕：顶部压一点保证 HUD 文字可读，底部让脚部落进草里不显生硬 */
+.stage::before,
+.stage::after{
+  content:"";position:absolute;left:0;right:0;z-index:1;pointer-events:none;
+}
+.stage::before{top:0;height:34%;
+  background:linear-gradient(180deg,rgba(28,44,72,.30),rgba(28,44,72,.10) 55%,transparent)}
+.stage::after{bottom:0;height:30%;
+  background:linear-gradient(0deg,rgba(38,62,30,.34),rgba(38,62,30,.10) 55%,transparent)}
+
+/* #stable 铺满舞台，独角兽按舞台高度定尺寸 —— 用绝对定位而非 flex，
+   这样立绘大小只跟舞台高矮有关，不会被自身宽度撑破背景。*/
+#stable{position:absolute;inset:0;z-index:2;pointer-events:none}
+
+/* 独角兽 */
+.uni-wrap{
+  position:absolute;left:50%;bottom:15%;height:66%;
+  translate:-50% 0;                 /* 水平居中；JS 的 scale 会在此基础上叠加 */
+  pointer-events:none;
+}
+/* 生成的立绘是位图，用 img 呈现；filter 投出柔和落地阴影，让它"站"在草地上 */
+.uni-img{
+  display:block;height:100%;width:auto;
+  filter:drop-shadow(0 6px 9px rgba(60,80,50,.28))
+         drop-shadow(0 1px 3px rgba(60,80,50,.16));
+  pointer-events:none;
+}
+.uni{
+  transform-origin:50% 100%;        /* 以脚为轴，呼吸和跳跃才不会飘起来 */
+  animation:breathe 3.6s ease-in-out infinite;
+  transition:transform .18s cubic-bezier(.3,1.6,.5,1);
+}
+@keyframes breathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-4px) scale(1.014)}}
+.uni.hop{animation:hop .56s cubic-bezier(.3,1.4,.5,1)}
+@keyframes hop{
+  0%{transform:translateY(0) scale(1,1)}
+  22%{transform:translateY(-26px) scale(.95,1.08)}
+  50%{transform:translateY(-6px) scale(1.06,.95)}
+  70%{transform:translateY(-9px) scale(.99,1.02)}
+  100%{transform:translateY(0) scale(1,1)}
+}
+.uni.shake{animation:shake .6s ease}
+@keyframes shake{
+  0%,100%{transform:translateX(0) rotate(0)}
+  15%{transform:translateX(-9px) rotate(-3deg)}
+  35%{transform:translateX(9px) rotate(3deg)}
+  55%{transform:translateX(-6px) rotate(-2deg)}
+  75%{transform:translateX(6px) rotate(2deg)}
+}
+
+/* 精灵：飘字 / 小心心 */
+.floaties{position:absolute;inset:0;pointer-events:none;overflow:visible}
+.floaty{
+  position:absolute;font-weight:900;font-size:17px;
+  text-shadow:0 2px 6px rgba(255,255,255,.95), 0 0 10px rgba(255,255,255,.85);
+  animation:floatUp 1.25s cubic-bezier(.2,.8,.3,1) forwards;
+  white-space:nowrap;
+}
+@keyframes floatUp{
+  0%{opacity:0;transform:translate(-50%,6px) scale(.6)}
+  22%{opacity:1;transform:translate(-50%,-10px) scale(1.12)}
+  100%{opacity:0;transform:translate(-50%,-72px) scale(1)}
+}
+.heart-fx{font-size:24px}
+.confetti{position:absolute;font-size:18px;animation:fall 2.1s linear forwards;pointer-events:none}
+@keyframes fall{
+  0%{opacity:0;transform:translateY(-20px) rotate(0)}
+  10%{opacity:1}
+  100%{opacity:0;transform:translateY(300px) rotate(540deg)}
+}
+
+/* 效率气泡 */
+.eff{
+  position:absolute;top:14px;left:14px;z-index:3;
+  background:rgba(255,255,255,.9);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.95);
+  border-radius:14px;padding:7px 11px;
+  font-size:12px;font-weight:800;color:var(--ink);
+  box-shadow:0 6px 16px rgba(120,95,160,.14);
+  line-height:1.35;
+}
+.eff b{color:var(--leaf);font-size:14px}
+.eff small{display:block;font-weight:600;color:var(--ink-soft);font-size:10.5px;letter-spacing:.2px}
+
+/* 心情状态 */
+.mood{
+  position:absolute;top:14px;right:14px;z-index:3;
+  background:rgba(255,255,255,.9);backdrop-filter:blur(10px);
+  border-radius:999px;padding:6px 12px 6px 9px;
+  font-size:12px;font-weight:800;
+  box-shadow:0 6px 16px rgba(120,95,160,.14);
+  display:flex;align-items:center;gap:5px;
+  transition:background .3s;
+}
+
+/* ============ 面板 ============ */
+.panel{
+  background:rgba(255,255,255,.78);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.92);
+  border-radius:var(--radius);
+  padding:14px 15px;
+  box-shadow:var(--shadow);
+}
+.meters{display:flex;flex-direction:column;gap:11px}
+.meter{display:grid;grid-template-columns:74px 1fr 46px;align-items:center;gap:10px}
+.meter .lb{font-size:12.5px;font-weight:800;display:flex;align-items:center;gap:4px;color:var(--ink)}
+.bar{
+  position:relative;height:15px;border-radius:999px;
+  background:rgba(140,120,170,.13);
+  overflow:hidden;box-shadow:inset 0 1px 3px rgba(120,95,160,.12);
+}
+.bar .fill{
+  position:absolute;inset:1px auto 1px 1px;width:0;border-radius:999px;
+  transition:width .45s cubic-bezier(.3,1.1,.4,1);
+  background-size:200% 100%;
+}
+.bar .fill::after{
+  content:"";position:absolute;inset:0;border-radius:999px;
+  background:linear-gradient(180deg,rgba(255,255,255,.55),transparent 55%);
+}
+#barHappy .fill{background-image:linear-gradient(90deg,#ff9ec7,#ff6fa8,#ff5c9d)}
+#barFull  .fill{background-image:linear-gradient(90deg,#ffd88a,#ffb340,#ff9d2e)}
+#barGrowth .fill{background-image:linear-gradient(90deg,#a9e28b,#5fc48b,#35b57e)}
+.meter .num{font-size:12px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-soft)}
+.meter .num.hot{color:var(--pink)}
+.bar .shine{
+  position:absolute;inset:1px auto 1px 1px;border-radius:999px;width:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.85),transparent);
+  opacity:.6;transition:width .45s ease;
+}
+
+/* ============ 按钮 ============ */
+.actions{display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:10px}
+.btn{
+  position:relative;
+  border:none;cursor:pointer;
+  border-radius:19px;
+  padding:13px 8px 11px;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  font-family:inherit;font-weight:800;color:var(--ink);
+  background:linear-gradient(180deg,#fff,#f7f2ff);
+  box-shadow:0 5px 0 rgba(150,125,185,.28), 0 8px 18px rgba(120,95,160,.14);
+  transition:transform .1s, box-shadow .1s, filter .2s;
+  overflow:hidden;
+}
+.btn .em{font-size:23px;line-height:1;filter:drop-shadow(0 2px 3px rgba(120,95,160,.2))}
+.btn .tx{font-size:12.5px;letter-spacing:.4px}
+.btn .sub{font-size:10.5px;font-weight:700;color:var(--ink-soft);letter-spacing:.2px}
+.btn:not(:disabled):hover{transform:translateY(-2px);box-shadow:0 7px 0 rgba(150,125,185,.28),0 12px 22px rgba(120,95,160,.18)}
+.btn:not(:disabled):active{transform:translateY(4px);box-shadow:0 1px 0 rgba(150,125,185,.28),0 3px 8px rgba(120,95,160,.14)}
+.btn:disabled{cursor:not-allowed;filter:grayscale(.75);opacity:.62;box-shadow:0 3px 0 rgba(150,125,185,.18)}
+.btn.feed{background:linear-gradient(180deg,#fff,#eafbef);box-shadow:0 5px 0 rgba(95,196,139,.4),0 8px 18px rgba(95,196,139,.18)}
+.btn.feed:not(:disabled):hover{box-shadow:0 7px 0 rgba(95,196,139,.4),0 12px 22px rgba(95,196,139,.22)}
+.btn.feed:active{box-shadow:0 1px 0 rgba(95,196,139,.4),0 3px 8px rgba(95,196,139,.16)}
+.btn.feed:disabled{box-shadow:0 3px 0 rgba(150,125,185,.18)}
+.btn .badge{
+  position:absolute;top:7px;right:8px;
+  min-width:19px;height:19px;padding:0 5px;
+  border-radius:999px;background:var(--pink);color:#fff;
+  font-size:10.5px;font-weight:900;line-height:19px;text-align:center;
+  box-shadow:0 2px 6px rgba(255,110,165,.5);
+}
+.btn .badge.zero{background:#c9bfd6;box-shadow:none}
+.btn.recoil{animation:recoil .34s ease}
+@keyframes recoil{0%{transform:scale(1)}35%{transform:scale(.93)}70%{transform:scale(1.04)}100%{transform:scale(1)}}
+
+.row2{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+.grassfield{
+  display:flex;align-items:center;gap:9px;
+  font-size:12px;font-weight:800;color:var(--ink-soft);
+}
+.grassbar{flex:1;height:9px;border-radius:999px;background:rgba(140,120,170,.13);overflow:hidden;box-shadow:inset 0 1px 2px rgba(120,95,160,.12)}
+.grassbar i{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,#a9e28b,#5fc48b);transition:width .5s ease}
+
+/* ============ 选角 ============ */
+.screen{display:none}
+.screen.on{display:flex;flex-direction:column;gap:12px}
+.picker-head{text-align:center;padding:6px 0 2px}
+.picker-head h1{
+  margin:0 0 4px;font-size:25px;font-weight:900;letter-spacing:.5px;
+  background:linear-gradient(95deg,#ff7fb2,#a78bfa 55%,#60c9f5);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.picker-head p{margin:0;font-size:12.5px;color:var(--ink-soft);font-weight:600;line-height:1.65}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{
+  position:relative;cursor:pointer;
+  background:rgba(255,255,255,.82);
+  border:2px solid rgba(255,255,255,.95);
+  border-radius:24px;padding:10px 10px 13px;
+  box-shadow:var(--shadow);
+  transition:transform .2s cubic-bezier(.3,1.3,.5,1), box-shadow .2s, border-color .2s;
+  text-align:center;
+}
+.card:hover{transform:translateY(-5px);box-shadow:0 16px 36px rgba(120,95,160,.2)}
+.card:active{transform:scale(.97)}
+/* 用绝对定位 + contain：grid 的 auto 行高会让 height:100% 退化成 auto，
+   立绘就会按原始比例撑破 148px 的框被裁掉。*/
+.card .pv{position:relative;height:148px;width:100%;overflow:hidden}
+.card .pv .uni-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.card h3{margin:6px 0 2px;font-size:15px;font-weight:900;letter-spacing:.4px}
+.card .tag{font-size:10.5px;font-weight:800;letter-spacing:.5px;padding:3px 9px;border-radius:999px;display:inline-block;margin-bottom:5px}
+.card p{margin:0;font-size:11px;color:var(--ink-soft);font-weight:600;line-height:1.55}
+.card .pick{
+  margin-top:9px;font-size:11.5px;font-weight:900;letter-spacing:1px;
+  border-radius:12px;padding:6px 0;
+  background:linear-gradient(90deg,#ffd6e8,#e2d6ff);
+  color:#7a5fa8;
+}
+.card.selected{border-color:#ff9ec7;box-shadow:0 0 0 4px rgba(255,158,199,.28), 0 14px 30px rgba(120,95,160,.2)}
+
+/* ============ 弹窗 ============ */
+.modal{
+  position:fixed;inset:0;z-index:60;
+  display:none;align-items:center;justify-content:center;
+  padding:20px;
+  background:rgba(74,59,92,.4);
+  backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+}
+.modal.on{display:flex;animation:fadeIn .22s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.sheet{
+  position:relative;width:100%;max-width:400px;max-height:84vh;overflow-y:auto;
+  background:linear-gradient(180deg,#fff,#fdf8ff);
+  border-radius:28px;padding:22px 20px 20px;
+  box-shadow:0 26px 60px rgba(74,59,92,.3);
+  animation:pop .34s cubic-bezier(.3,1.35,.5,1);
+}
+@keyframes pop{from{opacity:0;transform:scale(.9) translateY(18px)}to{opacity:1;transform:none}}
+.sheet h2{margin:0 0 3px;font-size:20px;font-weight:900;text-align:center}
+.sheet .sub{margin:0 0 16px;font-size:12px;color:var(--ink-soft);text-align:center;font-weight:600;line-height:1.6}
+.closex{
+  position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;
+  border:none;background:rgba(140,120,170,.12);color:var(--ink-soft);
+  font-size:15px;font-weight:900;cursor:pointer;line-height:1;
+}
+.closex:hover{background:rgba(140,120,170,.2)}
+
+.giftbox{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.gsl{
+  position:relative;aspect-ratio:1;border-radius:17px;display:grid;place-items:center;
+  font-size:26px;background:rgba(140,120,170,.08);
+  border:1.5px solid var(--line);
+  cursor:default;
+  transition:transform .18s, box-shadow .18s;
+}
+.gsl.r1{background:linear-gradient(180deg,#eef7ff,#e2eeff);border-color:#b9d6ff;box-shadow:0 4px 12px rgba(110,160,255,.18)}
+.gsl.r2{background:linear-gradient(180deg,#fff8e2,#ffeec4);border-color:#ffd98a;box-shadow:0 4px 14px rgba(255,190,60,.28)}
+.gsl.locked{color:rgba(120,100,150,.25);font-size:20px}
+.gsl.has{cursor:pointer}
+.gsl.has:hover{transform:translateY(-3px) scale(1.04);box-shadow:0 10px 22px rgba(120,95,160,.22)}
+.gsl .cnt{
+  position:absolute;bottom:3px;right:4px;
+  background:rgba(74,59,92,.82);color:#fff;
+  font-size:9.5px;font-weight:900;border-radius:999px;padding:1px 5px;
+}
+.gsl .glow{position:absolute;inset:-2px;border-radius:18px;box-shadow:0 0 0 0 rgba(255,200,80,.6);animation:none}
+.gsl.r2.has .glow{animation:glowPulse 2.2s ease-in-out infinite}
+@keyframes glowPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,200,80,.5)}50%{box-shadow:0 0 0 7px rgba(255,200,80,0)}}
+
+.giftdetail{
+  margin-top:10px;padding:11px 13px;border-radius:15px;
+  background:rgba(140,120,170,.08);font-size:12px;font-weight:600;
+  color:var(--ink-soft);line-height:1.65;min-height:44px;
+}
+.giftdetail b{color:var(--ink)}
+
+/* 大礼展示 */
+.bigGift{text-align:center}
+.bigGift .em{font-size:76px;line-height:1;display:block;margin:6px 0 12px;animation:emPop .7s cubic-bezier(.3,1.5,.5,1)}
+@keyframes emPop{0%{transform:scale(0) rotate(-40deg);opacity:0}60%{transform:scale(1.22) rotate(8deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+.bigGift .nm{font-size:23px;font-weight:900;margin-bottom:6px}
+.bigGift .ds{font-size:12.5px;color:var(--ink-soft);font-weight:600;line-height:1.7;margin-bottom:16px}
+.ribbon{
+  display:inline-block;font-size:11px;font-weight:900;letter-spacing:1.4px;
+  padding:4px 12px;border-radius:999px;margin-bottom:8px;
+}
+.rb-0{background:#eef1f5;color:#7c8aa0}
+.rb-1{background:#e0edff;color:#4a7fd4}
+.rb-2{background:linear-gradient(90deg,#fff0c2,#ffd98a);color:#a8700a;box-shadow:0 3px 12px rgba(255,190,60,.4)}
+.btn-primary{
+  width:100%;border:none;cursor:pointer;font-family:inherit;
+  padding:14px;border-radius:17px;
+  font-size:14.5px;font-weight:900;letter-spacing:.6px;color:#fff;
+  background:linear-gradient(95deg,#ff8fbd,#b18cf5);
+  box-shadow:0 6px 0 rgba(150,110,200,.35), 0 10px 22px rgba(180,140,245,.3);
+  transition:transform .1s, box-shadow .1s;
+}
+.btn-primary:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(150,110,200,.35),0 4px 10px rgba(180,140,245,.24)}
+
+/* 菜单列表 */
+.menuList{display:flex;flex-direction:column;gap:9px}
+.menuItem{
+  display:flex;align-items:center;gap:11px;
+  padding:13px 14px;border-radius:16px;cursor:pointer;
+  background:rgba(140,120,170,.07);border:1px solid var(--line);
+  font-size:13px;font-weight:800;font-family:inherit;color:var(--ink);
+  text-align:left;width:100%;
+  transition:background .15s, transform .15s;
+}
+.menuItem:hover{background:rgba(140,120,170,.13);transform:translateX(2px)}
+.menuItem .em{font-size:19px}
+.menuItem .desc{font-size:10.5px;font-weight:600;color:var(--ink-soft);display:block;margin-top:2px}
+.menuItem.danger{color:#e0574a}
+.menuItem.danger:hover{background:rgba(224,87,74,.09)}
+
+/* Toast */
+#toast{
+  position:fixed;left:50%;bottom:32px;transform:translate(-50%,26px);
+  z-index:90;pointer-events:none;
+  background:rgba(74,59,92,.94);color:#fff;
+  padding:11px 20px;border-radius:999px;
+  font-size:13px;font-weight:800;letter-spacing:.3px;
+  box-shadow:0 10px 26px rgba(74,59,92,.32);
+  opacity:0;transition:opacity .26s, transform .26s cubic-bezier(.3,1.4,.5,1);
+  max-width:86vw;text-align:center;line-height:1.45;
+}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* 教程小贴士 */
+.tip{
+  font-size:11px;font-weight:600;color:var(--ink-soft);
+  line-height:1.7;text-align:center;padding:2px 6px;
+}
+.tip b{color:#7a5fa8}
+
+@media(max-width:400px){
+  .meter{grid-template-columns:66px 1fr 40px;gap:8px}
+  .btn{padding:11px 6px 9px}
+  .btn .em{font-size:21px}
+  .logo{font-size:17px}
+  .topbar .title{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ========== 选角界面 ========== -->
+  <section id="screenPick" class="screen on">
+    <div class="topbar">
+      <div class="logo">NICI<span class="star">★</span></div>
+      <div class="title">Theodor &amp; Friends</div>
+      <div class="spacer"></div>
+      <div class="chip">✨ 魔法小镇</div>
+    </div>
+
+    <div class="picker-head">
+      <h1>选一只独角兽吧</h1>
+      <p>它会成为你的伙伴。<br>喂草、抚摸、玩耍 —— 陪它长大，它就会变出魔法礼物。</p>
+    </div>
+
+    <div class="grid" id="pickGrid"></div>
+
+    <div class="panel tip">
+      🌿 <b>喂草</b> 提升饱食度 &nbsp;·&nbsp; 🤚 <b>抚摸</b> / 🎠 <b>玩耍</b> 提升开心度<br>
+      开心度越高，吃草的效率越高 ✨ 生长度攒满就会变出礼物
+    </div>
+  </section>
+
+  <!-- ========== 主游戏界面 ========== -->
+  <section id="screenGame" class="screen">
+
+    <div class="topbar">
+      <div class="logo">NICI<span class="star">★</span></div>
+      <div class="spacer"></div>
+      <div class="chip" id="chipDay">第 1 天</div>
+      <div class="chip sun" id="chipLv">Lv.1</div>
+      <button class="iconbtn" id="btnGift" title="魔法礼品柜">🎁</button>
+      <button class="iconbtn" id="btnMenu" title="更多">⋯</button>
+    </div>
+
+    <div class="stage has-scene" id="stage">
+      <div class="eff" id="effBox">
+        吃草效率 <b id="effVal">×1.0</b>
+        <small id="effHint">开心度越高吃得越香</small>
+      </div>
+      <div class="mood" id="moodBox">😊 <span id="moodTxt">开心</span></div>
+
+      <div id="stable">
+        <div class="uni-wrap" id="uniWrap"></div>
+        <div class="floaties" id="floaties"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="meters">
+        <div class="meter">
+          <div class="lb">💗 开心度</div>
+          <div class="bar" id="barHappy"><div class="shine" id="shHappy"></div><div class="fill" id="fillHappy"></div></div>
+          <div class="num" id="numHappy">0</div>
+        </div>
+        <div class="meter">
+          <div class="lb">🌿 饱食度</div>
+          <div class="bar" id="barFull"><div class="shine" id="shFull"></div><div class="fill" id="fillFull"></div></div>
+          <div class="num" id="numFull">0</div>
+        </div>
+        <div class="meter">
+          <div class="lb">✨ 生长度</div>
+          <div class="bar" id="barGrowth"><div class="shine" id="shGrowth"></div><div class="fill" id="fillGrowth"></div></div>
+          <div class="num" id="numGrowth">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn feed" id="btnFeed">
+        <span class="badge" id="badgeGrass">0</span>
+        <span class="em">🌿</span>
+        <span class="tx">喂草</span>
+        <span class="sub" id="subFeed">+0 饱食</span>
+      </button>
+      <button class="btn" id="btnPet">
+        <span class="badge" id="badgePet">0</span>
+        <span class="em">🤚</span>
+        <span class="tx">抚摸</span>
+        <span class="sub" id="subPet">+18 开心</span>
+      </button>
+      <button class="btn" id="btnPlay">
+        <span class="badge" id="badgePlay">0</span>
+        <span class="em">🎠</span>
+        <span class="tx">玩耍</span>
+        <span class="sub" id="subPlay">+26 开心</span>
+      </button>
+    </div>
+
+    <div class="panel row2">
+      <div class="grassfield">
+        <span>🌱 草地生长</span>
+        <div class="grassbar"><i id="grassFill"></i></div>
+      </div>
+      <div class="chip" id="chipGift">🎁 0</div>
+    </div>
+
+  </section>
+</div>
+
+<!-- ========== 礼品柜 ========== -->
+<div class="modal" id="modalGift">
+  <div class="sheet">
+    <button class="closex" data-close>✕</button>
+    <h2>🎁 魔法礼品柜</h2>
+    <p class="sub" id="giftSub">生长度攒满一次，就会变出一件礼物</p>
+    <div class="giftbox" id="giftBox"></div>
+    <div class="giftdetail" id="giftDetail">点一件礼物，看看它是什么 ✨</div>
+  </div>
+</div>
+
+<!-- ========== 新礼物揭晓 ========== -->
+<div class="modal" id="modalReveal">
+  <div class="sheet">
+    <div class="bigGift">
+      <span class="ribbon rb-0" id="rvRibbon">普 通</span>
+      <span class="em" id="rvEm">🎁</span>
+      <div class="nm" id="rvName">礼物</div>
+      <div class="ds" id="rvDesc"></div>
+      <button class="btn-primary" id="rvOk">收下它 💖</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 菜单 ========== -->
+<div class="modal" id="modalMenu">
+  <div class="sheet">
+    <button class="closex" data-close>✕</button>
+    <h2>⋯ 设置</h2>
+    <p class="sub">独角兽：<b id="menuName">—</b></p>
+    <div class="menuList">
+      <button class="menuItem" id="miSound"><span class="em">🔊</span><span>音效<span class="desc" id="miSoundDesc">开</span></span></button>
+      <button class="menuItem" id="miSwitch"><span class="em">🔄</span><span>换一只独角兽<span class="desc">重新选择伙伴（进度会保留在它身上）</span></span></button>
+      <button class="menuItem" id="miStats"><span class="em">📊</span><span>养成档案<span class="desc" id="miStatsDesc">看看你们一起走过的日子</span></span></button>
+      <button class="menuItem danger" id="miReset"><span class="em">🗑</span><span>重新开始<span class="desc">清空全部进度与礼品，无法恢复</span></span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 档案 ========== -->
+<div class="modal" id="modalStats">
+  <div class="sheet">
+    <button class="closex" data-close>✕</button>
+    <h2>📊 养成档案</h2>
+    <p class="sub" id="statsSub"></p>
+    <div id="statsBody"></div>
+    <div style="height:14px"></div>
+    <button class="btn-primary" data-close>好 的</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* =========================================================
+   NICI 独角兽养成 · 魔法小镇
+   单文件 / 零依赖 / localStorage 存档
+   ========================================================= */
+
+/* ---------------- 1. 角色数据 ---------------- */
+/* img: 生成的 NICI 风格立绘（musk-image 出图 -> tools/optimize_assets.py 裁切压缩）
+   body/mane 等色值保留，用于 UI 点缀（标签、滑条、飘字配色）*/
+const UNICORNS = [
+  {
+    id:'bubble', name:'泡泡', en:'Bubble',
+    img:'assets/opt/unicorn_bubble.webp',
+    tag:'温柔', tagColor:'#6aa9e8',
+    body:'#ffffff', bodyShade:'#eef1f7', mane:'#f9bcd6', mane2:'#ffd3e4',
+    accent:'#ff8fc0', hoof:'#f7d3e2',
+    mark:'star', bow:false,
+    desc:'雪白的一只，粉色鬃毛像棉花糖。最安静，也最容易被哄开心。',
+    bonus:{ happyDecay:-0.012 }
+  },
+  {
+    id:'cloudy', name:'云宝', en:'Cloudy',
+    img:'assets/opt/unicorn_cloudy.webp',
+    tag:'毛茸茸', tagColor:'#8f7fd6',
+    body:'#d5e8f8', bodyShade:'#c0d8ee', mane:'#b79be0', mane2:'#d0bcf0',
+    accent:'#8f6fd0', hoof:'#c8b6ea',
+    mark:'cloud', bow:false,
+    desc:'蓝紫色绒毛的一只，云朵记号软软的。吃得多、长得快，是头小吃货。',
+    bonus:{ feedGain:1.12 }
+  },
+  {
+    id:'peachy', name:'桃桃', en:'Peachy',
+    img:'assets/opt/unicorn_peachy.webp',
+    tag:'活泼', tagColor:'#f0688f',
+    body:'#ffb6c9', bodyShade:'#f79fb6', mane:'#ff93bb', mane2:'#ffc0d5',
+    accent:'#ff5c8a', hoof:'#ff9dbd',
+    mark:'heart', bow:'pink',
+    desc:'粉红色的小马，鬃毛里夹着蝴蝶结。尾巴一甩就停不下来。',
+    bonus:{ playGain:1.35 }
+  },
+  {
+    id:'dreamy', name:'梦梦', en:'Dreamy',
+    img:'assets/opt/unicorn_dreamy.webp',
+    tag:'梦幻', tagColor:'#7b68c8',
+    body:'#fbe7f0', bodyShade:'#f2d7e5', mane:'#9b7fd4', mane2:'#c3aeea',
+    accent:'#8a6fd0', hoof:'#cbb8ee',
+    mark:'diamond', bow:'purple',
+    desc:'淡粉色配紫色鬃毛，总在做梦。陪它玩的时候，生长度涨得特别快。',
+    bonus:{ growthGain:1.2 }
+  }
+];
+const byId = id => UNICORNS.find(u => u.id === id);
+
+/* ---------------- 2. 魔法礼品 ---------------- */
+const GIFTS = [
+  {e:'🍀', n:'四叶幸运草', r:0, w:17, d:'在一片三叶草里找到的唯一一片。据说把它夹进书里，那一天都会很顺利。'},
+  {e:'☁️', n:'云朵棉花糖', r:0, w:16, d:'从最矮的那朵云上揪下来的一小块，咬一口会轻飘飘的。'},
+  {e:'🎀', n:'彩虹丝带', r:0, w:16, d:'系在鬃毛上，跑起来就会留下一条小彩虹。'},
+  {e:'🍭', n:'魔法棒棒糖', r:0, w:15, d:'含在嘴里，吹出来的泡泡会变成星星的形状。'},
+  {e:'🥕', n:'金胡萝卜', r:0, w:15, d:'比普通的草香一百倍。它闻到味道就会立刻跑过来。'},
+  {e:'🕯️', n:'月光蜡烛', r:0, w:12, d:'只在满月的夜里点燃，火光像被水洗过一样凉。'},
+  {e:'🔮', n:'梦幻水晶球', r:1, w:9,  d:'摇一摇会下雪。雪里有一座很小很小的镇子，仔细看，里面也有一只独角兽。'},
+  {e:'💎', n:'独角兽宝石', r:1, w:8,  d:'从角的根部慢慢结出的结晶，握在手里是温的。'},
+  {e:'🌈', n:'迷你彩虹', r:1, w:7,  d:'可以折起来放进口袋。展开的时候，天上就真的会挂起一条。'},
+  {e:'🎠', n:'旋转木马模型', r:1, w:6,  d:'上好发条就会自己转圈，音乐是那种听了会想哭的老调子。'},
+  {e:'👑', n:'独角兽小王冠', r:2, w:3,  d:'戴上它的那一刻，整个小镇的草都会变甜。'},
+  {e:'🌟', n:'永恒星光', r:2, w:2,  d:'从天上摘下来的一颗。它不会熄灭，你睡着的时候它会替你守着。'},
+  {e:'🦄', n:'黄金独角兽', r:2, w:1,  d:'传说中的身影。只有最耐心、最温柔的主人，才有机会见到它一次。'}
+];
+const RARITY = ['普通','稀有','传说'];
+const RARITY_CLASS = ['rb-0','rb-1','rb-2'];
+const pickGift = () => {
+  const total = GIFTS.reduce((s,g)=>s+g.w,0);
+  let r = Math.random()*total;
+  for (const g of GIFTS){ r -= g.w; if (r <= 0) return {...g}; }
+  return {...GIFTS[0]};
+};
+
+/* ---------------- 3. 数值配置 ---------------- */
+const CFG = {
+  HAPPY_DECAY   : 0.055,   // 开心度每秒自然衰减
+  HUNGRY_EXTRA  : 0.045,   // 饱食度低于阈值时额外的掉心情速度
+  HUNGRY_LINE   : 30,
+  FULL_DECAY    : 0.05,    // 饱食度每秒衰减
+  CONTENT_HAPPY : 0.012,   // 吃饱时每秒回一点心情
+  CONTENT_LINE  : 78,
+  GROWTH_BASE   : 0.17,    // 生长度基础速率（每秒，满条件）
+  FEED_FULL     : 13,      // 一根草的基准饱食度
+  FEED_HAPPY_UP : 3,       // 喂草小幅加心情
+  FEED_GROWTH   : 0.5,     // 喂草即时生长度
+  PET_HAPPY     : 18,
+  PLAY_HAPPY    : 26,
+  PLAY_FULL_COST: 7,
+  GRASS_START   : 12,
+  GRASS_MAX     : 40,
+  GRASS_EVERY   : 14,      // 每 N 秒长一根草
+  DAY_GRASS_GIFT: 6,       // 新的一天赠送的草
+};
+const growthCap = lv => 100 + (lv-1)*38;
+const feedEff   = happy => 0.35 + 0.95*(happy/100);   // 0.35x ~ 1.30x
+
+const MOODS = [
+  {min:88, e:'🤩', t:'超级开心'},
+  {min:70, e:'😊', t:'开心'},
+  {min:50, e:'🙂', t:'还不错'},
+  {min:30, e:'😕', t:'有点闷'},
+  {min:12, e:'😢', t:'不太开心'},
+  {min:0,  e:'😭', t:'好难过'},
+];
+
+/* ---------------- 4. 状态 & 存档 ---------------- */
+const SAVE_KEY = 'nici_unicorn_save_v1';
+const todayStr = (d=new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+let S = null;
+function freshState(){
+  return {
+    v:1,
+    chosen:null,
+    day:1,
+    lastDate:todayStr(),
+    lv:1,
+    grass:CFG.GRASS_START,
+    happy:70,
+    full:62,
+    growth:0,
+    gifts:{},          // name -> count
+    daily:{pet:1, play:2},
+    feeds:0, pets:0, plays:0, giftTotal:0, bornAt:Date.now(),
+    grassTimer:0,
+    muted:false,
+    lastTick:Date.now()
+  };
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return freshState();
+    const o = JSON.parse(raw);
+    const base = freshState();
+    const s = Object.assign(base, o);
+    s.daily  = Object.assign({pet:1,play:2}, o.daily||{});
+    s.gifts  = o.gifts || {};
+    return s;
+  }catch(e){ return freshState(); }
+}
+function save(){
+  try{ S.lastTick = Date.now(); localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){}
+}
+
+/* ---------------- 5. 音效（WebAudio 合成，无外部资源） ---------------- */
+let AC = null;
+function ac(){
+  if(S && S.muted) return null;
+  if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; } }
+  if(AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(freq, dur, type='sine', vol=.16, delay=0, slideTo=null){
+  const c = ac(); if(!c) return;
+  const t0 = c.currentTime + delay;
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t0);
+  if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0+dur);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+  o.connect(g); g.connect(c.destination);
+  o.start(t0); o.stop(t0+dur+0.03);
+}
+const SFX = {
+  feed (){ tone(520,.1,'triangle',.13,0); tone(700,.13,'triangle',.1,.06); },
+  pet  (){ tone(660,.16,'sine',.14,0,880); tone(990,.2,'sine',.09,.09,1180); },
+  play (){ [0,.09,.18,.27].forEach((d,i)=>tone(523*Math.pow(1.19,i),.14,'triangle',.11,d)); },
+  full (){ tone(880,.11,'sine',.12,0); tone(1174,.16,'sine',.11,.1); },
+  gift (){ [523,659,784,1046,1318].forEach((f,i)=>tone(f,.32,'triangle',.12,i*.09)); tone(1568,.7,'sine',.08,.5); },
+  no   (){ tone(300,.13,'sawtooth',.07,0,190); },
+  day  (){ tone(784,.2,'sine',.1,0); tone(1046,.3,'sine',.09,.14); },
+  click(){ tone(1200,.05,'sine',.06); }
+};
+function buzz(ms=12){ if(navigator.vibrate) try{navigator.vibrate(ms);}catch(e){} }
+
+/* ---------------- 7. DOM 引用 ---------------- */
+const $ = id => document.getElementById(id);
+const el = {
+  screenPick:$('screenPick'), screenGame:$('screenGame'), pickGrid:$('pickGrid'),
+  uniWrap:$('uniWrap'), floaties:$('floaties'), stage:$('stage'),
+  effBox:$('effBox'), effVal:$('effVal'), effHint:$('effHint'),
+  moodBox:$('moodBox'), moodTxt:$('moodTxt'),
+  fillHappy:$('fillHappy'), fillFull:$('fillFull'), fillGrowth:$('fillGrowth'),
+  shHappy:$('shHappy'), shFull:$('shFull'), shGrowth:$('shGrowth'),
+  numHappy:$('numHappy'), numFull:$('numFull'), numGrowth:$('numGrowth'),
+  btnFeed:$('btnFeed'), btnPet:$('btnPet'), btnPlay:$('btnPlay'),
+  badgeGrass:$('badgeGrass'), badgePet:$('badgePet'), badgePlay:$('badgePlay'),
+  subFeed:$('subFeed'), subPet:$('subPet'), subPlay:$('subPlay'),
+  chipDay:$('chipDay'), chipLv:$('chipLv'), chipGift:$('chipGift'), grassFill:$('grassFill'),
+  btnGift:$('btnGift'), btnMenu:$('btnMenu'),
+  modalGift:$('modalGift'), giftBox:$('giftBox'), giftDetail:$('giftDetail'), giftSub:$('giftSub'),
+  modalReveal:$('modalReveal'), rvEm:$('rvEm'), rvName:$('rvName'), rvDesc:$('rvDesc'),
+  rvRibbon:$('rvRibbon'), rvOk:$('rvOk'),
+  modalMenu:$('modalMenu'), menuName:$('menuName'), miSound:$('miSound'), miSoundDesc:$('miSoundDesc'),
+  miSwitch:$('miSwitch'), miReset:$('miReset'), miStats:$('miStats'), miStatsDesc:$('miStatsDesc'),
+  modalStats:$('modalStats'), statsBody:$('statsBody'), statsSub:$('statsSub'),
+  toast:$('toast')
+};
+
+/* ---------------- 8. 工具 ---------------- */
+let toastTimer = null;
+function toast(msg){
+  el.toast.textContent = msg;
+  el.toast.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.toast.classList.remove('on'), 2100);
+}
+function openModal(m){ m.classList.add('on'); }
+function closeModal(m){ m.classList.remove('on'); }
+document.querySelectorAll('[data-close]').forEach(b=>{
+  b.addEventListener('click', ()=> closeModal(b.closest('.modal')));
+});
+document.querySelectorAll('.modal').forEach(m=>{
+  m.addEventListener('click', e=>{ if(e.target === m) closeModal(m); });
+});
+
+function floaty(text, xPct, color, cls=''){
+  const d = document.createElement('div');
+  d.className = 'floaty ' + cls;
+  d.textContent = text;
+  d.style.left = xPct + '%';
+  d.style.top = '34%';
+  if(color) d.style.color = color;
+  el.floaties.appendChild(d);
+  setTimeout(()=>d.remove(), 1300);
+}
+function burstHearts(n=5){
+  const ems = ['💗','💖','✨','⭐','💕'];
+  for(let i=0;i<n;i++){
+    const d = document.createElement('div');
+    d.className = 'floaty heart-fx';
+    d.textContent = ems[(Math.random()*ems.length)|0];
+    d.style.left = (30 + Math.random()*40) + '%';
+    d.style.top  = (26 + Math.random()*22) + '%';
+    d.style.animationDelay = (i*0.075) + 's';
+    el.floaties.appendChild(d);
+    setTimeout(()=>d.remove(), 1500 + i*80);
+  }
+}
+function confetti(n=26){
+  const ems = ['✨','🌟','💖','🎉','🌈','⭐','💫','🎀'];
+  for(let i=0;i<n;i++){
+    const d = document.createElement('div');
+    d.className = 'confetti';
+    d.textContent = ems[(Math.random()*ems.length)|0];
+    d.style.left = (Math.random()*100) + '%';
+    d.style.top = '-10px';
+    d.style.fontSize = (13 + Math.random()*15) + 'px';
+    d.style.animationDelay = (Math.random()*0.7) + 's';
+    el.stage.appendChild(d);
+    setTimeout(()=>d.remove(), 3000);
+  }
+}
+function popUni(cls, ms){
+  const g = el.uniWrap.querySelector('.uni');
+  if(!g) return;
+  g.classList.remove('hop','shake');
+  void g.offsetWidth;
+  g.classList.add(cls);
+  setTimeout(()=>g.classList.remove(cls), ms);
+}
+function flashBtn(btn){
+  btn.classList.remove('recoil'); void btn.offsetWidth; btn.classList.add('recoil');
+}
+
+/* ---------------- 9. 选角界面 ---------------- */
+function renderPick(){
+  el.pickGrid.innerHTML = UNICORNS.map(u=>`
+    <div class="card" data-id="${u.id}">
+      <div class="pv"><img class="uni-img" src="${u.img}" alt="${u.name}" draggable="false"></div>
+      <span class="tag" style="background:${u.tagColor}1f;color:${u.tagColor}">${u.tag}</span>
+      <h3>${u.name}</h3>
+      <p>${u.desc}</p>
+      <div class="pick">选 择</div>
+    </div>`).join('');
+  el.pickGrid.querySelectorAll('.card').forEach(c=>{
+    c.addEventListener('click', ()=>{
+      SFX.click();
+      const u = byId(c.dataset.id);
+      chooseUnicorn(u.id);
+    });
+  });
+}
+
+/* ---------------- 10. 进入游戏 ---------------- */
+function chooseUnicorn(id){
+  S = S || freshState();
+  S.chosen = id;
+  S.bornAt = S.bornAt || Date.now();
+  save();
+  el.screenPick.classList.remove('on');
+  el.screenGame.classList.add('on');
+  el.menuName.textContent = byId(id).name;
+  renderStable();
+  checkDay(true);
+  render();
+  toast(`${byId(id).name} 来到你身边啦 💕`);
+}
+
+function renderStable(){
+  const u = byId(S.chosen);
+  el.uniWrap.innerHTML =
+    `<img class="uni uni-img" src="${u.img}" alt="${u.name}" draggable="false">`;
+  const g = el.uniWrap.querySelector('.uni');
+  // 等级越高，独角兽越大一点
+  const sc = 1 + Math.min(S.lv-1, 6) * 0.035;
+  g.style.scale = sc;
+}
+
+/* ---------------- 11. 每日重置 ---------------- */
+function checkDay(silent=false){
+  const t = todayStr();
+  if(S.lastDate === t) return false;
+  const d1 = new Date(S.lastDate + 'T00:00:00');
+  const d2 = new Date(t + 'T00:00:00');
+  const passed = Math.max(1, Math.round((d2-d1)/86400000));
+  S.day += passed;
+  S.lastDate = t;
+  S.daily.pet  = 1;
+  S.daily.play = 2;
+  S.grass = Math.min(CFG.GRASS_MAX, S.grass + CFG.DAY_GRASS_GIFT * Math.min(passed,3));
+  S.happy = Math.min(100, S.happy + 6);   // 见到主人，开心一点
+  S.growth = Math.min(growthCap(S.lv), S.growth + 2);
+  save();
+  if(!silent){
+    SFX.day();
+    toast(`☀️ 第 ${S.day} 天！抚摸 +1，玩耍 +2，草地送来 ${CFG.DAY_GRASS_GIFT} 根草`);
+    confetti(14);
+  }
+  return true;
+}
+
+/* ---------------- 12. 渲染 ---------------- */
+const shown = {};   // 上一帧已写入的值，避免 60fps 重复写 DOM
+function changed(key, val){
+  if(shown[key] === val) return false;
+  shown[key] = val;
+  return true;
+}
+function setBar(key, fillEl, shineEl, numEl, val, cap){
+  const pct = Math.max(0, Math.min(100, val/cap*100));
+  if(changed(key+'_w', Math.round(pct*10))){
+    fillEl.style.width  = `calc(${pct}% - 2px)`;
+    shineEl.style.width = `calc(${pct}% - 2px)`;
+  }
+  const txt = Math.round(val) + (cap===100 ? '' : '/' + cap);
+  if(changed(key+'_t', txt)) numEl.textContent = txt;
+}
+function moodOf(h){ return MOODS.find(m=>h>=m.min) || MOODS[MOODS.length-1]; }
+
+function render(){
+  if(!S || !S.chosen) return;
+  const cap = growthCap(S.lv);
+
+  setBar('happy',  el.fillHappy,  el.shHappy,  el.numHappy,  S.happy, 100);
+  setBar('full',   el.fillFull,   el.shFull,   el.numFull,   S.full,  100);
+  setBar('growth', el.fillGrowth, el.shGrowth, el.numGrowth, S.growth, cap);
+
+  if(changed('hotH', S.happy >= 85))     el.numHappy.classList.toggle('hot', S.happy >= 85);
+  if(changed('hotF', S.full >= 95))      el.numFull.classList.toggle('hot', S.full >= 95);
+  if(changed('hotG', S.growth >= cap*.9))el.numGrowth.classList.toggle('hot', S.growth >= cap*.9);
+
+  // 心情
+  const m = moodOf(S.happy);
+  if(changed('mood', m.t)){
+    el.moodTxt.textContent = m.t;
+    el.moodBox.firstChild.textContent = m.e + ' ';
+    el.moodBox.style.background =
+        S.happy >= 70 ? 'rgba(255,238,246,.94)'
+      : S.happy >= 40 ? 'rgba(255,255,255,.9)'
+      :                 'rgba(226,238,255,.94)';
+  }
+
+  // 效率
+  const eff = feedEff(S.happy);
+  const effKey = eff.toFixed(2);
+  if(changed('eff', effKey)){
+    el.effVal.textContent = '×' + effKey;
+    el.effHint.textContent = eff >= 1.25 ? '它现在开心得不得了，吃得飞快！'
+                          : eff >= 1.0  ? '心情不错，吃得挺香'
+                          : eff >= 0.7  ? '心情一般，吃得慢吞吞'
+                          : '心情低落，喂它也不太想吃…';
+    el.effBox.querySelector('b').style.color = eff>=1.0 ? '#5fc48b' : (eff>=0.7 ? '#e8930c' : '#e0574a');
+  }
+
+  // 按钮
+  const gainFull = CFG.FEED_FULL * eff * (byId(S.chosen).bonus.feedGain || 1);
+  const noGrass  = S.grass <= 0, tooFull = S.full >= 99.5;
+
+  if(changed('feedBtn', `${noGrass}|${tooFull}`)){
+    el.btnFeed.disabled = noGrass || tooFull;
+    el.subFeed.textContent = tooFull ? '已经吃饱' : `+${Math.round(gainFull)} 饱食`;
+  }
+  if(changed('grass', S.grass)){
+    el.badgeGrass.textContent = S.grass;
+    el.badgeGrass.classList.toggle('zero', noGrass);
+  }
+
+  if(changed('pet', S.daily.pet)){
+    el.btnPet.disabled = S.daily.pet <= 0;
+    el.badgePet.textContent = S.daily.pet;
+    el.badgePet.classList.toggle('zero', S.daily.pet <= 0);
+    el.subPet.textContent = S.daily.pet > 0 ? `+${petAmount()} 开心` : '今天摸够啦';
+  }
+  if(changed('play', S.daily.play)){
+    el.btnPlay.disabled = S.daily.play <= 0;
+    el.badgePlay.textContent = S.daily.play;
+    el.badgePlay.classList.toggle('zero', S.daily.play <= 0);
+    el.subPlay.textContent = S.daily.play > 0 ? `+${playAmount()} 开心` : '今天玩够啦';
+  }
+
+  // 顶部
+  if(changed('day', S.day)) el.chipDay.textContent = `第 ${S.day} 天`;
+  if(changed('lv', S.lv))   el.chipLv.textContent  = `Lv.${S.lv}`;
+  const total = Object.values(S.gifts).reduce((a,b)=>a+b,0);
+  if(changed('gifts', total)) el.chipGift.textContent = `🎁 ${total}`;
+  if(changed('grassbar', Math.round(S.grass/CFG.GRASS_MAX*100)))
+    el.grassFill.style.width = (S.grass/CFG.GRASS_MAX*100) + '%';
+}
+const petAmount  = () => Math.round(CFG.PET_HAPPY);
+const playAmount = () => Math.round(CFG.PLAY_HAPPY * (byId(S.chosen).bonus.playGain || 1));
+
+/* ---------------- 13. 动作 ---------------- */
+function doFeed(){
+  if(S.grass <= 0){ SFX.no(); flashBtn(el.btnFeed); toast('草吃完啦，等草地长出来 🌱'); return; }
+  if(S.full >= 99.5){ SFX.no(); flashBtn(el.btnFeed); toast(`${byId(S.chosen).name} 已经吃不下了…`); return; }
+
+  const u = byId(S.chosen);
+  S.grass--;
+  S.feeds++;
+  const eff  = feedEff(S.happy);
+  const gain = CFG.FEED_FULL * eff * (u.bonus.feedGain || 1);
+  const before = S.full;
+  S.full  = Math.min(100, S.full + gain);
+  S.happy = Math.min(100, S.happy + CFG.FEED_HAPPY_UP);
+  S.growth = Math.min(growthCap(S.lv), S.growth + CFG.FEED_GROWTH * (u.bonus.growthGain || 1));
+
+  flashBtn(el.btnFeed);
+  popUni('hop', 900);      // 位图没有可动的嘴，用一次轻跳表示在吃东西
+  SFX.feed(); buzz(10);
+
+  const real = Math.round(S.full - before);
+  floaty(`🌿 +${real}`, 36, '#3a9e6a');
+  const col = eff >= 1.2 ? '#ff5c9d' : (eff >= 0.95 ? '#3a9e6a' : '#8a7a9e');
+  floaty(`×${eff.toFixed(2)}`, 62, col);
+
+  if(S.full >= 100){ setTimeout(()=>{ SFX.full(); burstHearts(4); floaty('😋 吃饱啦', 50, '#ff9d2e'); }, 420); }
+
+  save(); render();
+}
+
+function doPet(){
+  if(S.daily.pet <= 0){ SFX.no(); flashBtn(el.btnPet); toast('今天已经摸够啦，明天再来 🤚'); return; }
+  const u = byId(S.chosen);
+  S.daily.pet--; S.pets++;
+  const amt = petAmount();
+  S.happy = Math.min(100, S.happy + amt);
+  S.growth = Math.min(growthCap(S.lv), S.growth + 3 * (u.bonus.growthGain || 1));
+
+  flashBtn(el.btnPet);
+  popUni('shake', 640);
+  SFX.pet(); buzz(14);
+  burstHearts(4);
+  floaty(`💗 +${amt} 开心`, 48, '#ff5c9d');
+
+  save(); render();
+}
+
+function doPlay(){
+  if(S.daily.play <= 0){ SFX.no(); flashBtn(el.btnPlay); toast('它累啦，明天再玩 🎠'); return; }
+  const u = byId(S.chosen);
+  S.daily.play--; S.plays++;
+  const amt  = playAmount();
+  const grow = 9 * (u.bonus.growthGain || 1);
+  S.happy  = Math.min(100, S.happy + amt);
+  S.full   = Math.max(0,  S.full - CFG.PLAY_FULL_COST);
+  S.growth = Math.min(growthCap(S.lv), S.growth + grow);
+
+  flashBtn(el.btnPlay);
+  popUni('hop', 600);
+  setTimeout(()=>popUni('hop', 600), 300);
+  SFX.play(); buzz(18);
+  burstHearts(7);
+  floaty(`🎠 +${amt} 开心`, 50, '#ff5c9d');
+  setTimeout(()=>floaty(`✨ +${Math.round(grow)} 生长`, 30, '#5fc48b'), 220);
+  setTimeout(()=>floaty(`🌿 -${CFG.PLAY_FULL_COST} 饱食`, 74, '#b09a6a'), 380);
+
+  save(); render();
+}
+
+/* ---------------- 14. 生长度满 → 变礼物 ---------------- */
+let pendingGifts = [];
+function checkGrowth(){
+  if(!S.chosen) return;
+  const cap = growthCap(S.lv);
+  if(S.growth < cap) return;
+
+  S.growth -= cap;
+  S.lv++;
+  const g = pickGift();
+  S.gifts[g.n] = (S.gifts[g.n] || 0) + 1;
+  S.giftTotal++;
+  pendingGifts.push(g);
+
+  renderStable();
+  confetti(30);
+  SFX.gift(); buzz([22,60,22]);
+  save();
+  setTimeout(revealNext, 380);
+}
+function revealNext(){
+  const g = pendingGifts.shift();
+  if(!g) return;
+  el.rvEm.textContent = g.e;
+  el.rvName.textContent = g.n;
+  el.rvDesc.textContent = g.d;
+  el.rvRibbon.textContent = RARITY[g.r];
+  el.rvRibbon.className = 'ribbon ' + RARITY_CLASS[g.r];
+  openModal(el.modalReveal);
+  el.rvOk.onclick = ()=>{
+    closeModal(el.modalReveal);
+    SFX.click();
+    render();
+    if(pendingGifts.length) setTimeout(revealNext, 260);
+    else toast(`${byId(S.chosen).name} 长大啦！现在是 Lv.${S.lv} ✨`);
+  };
+}
+
+/* ---------------- 15. 礼品柜 ---------------- */
+function renderGiftBox(){
+  const total = Object.values(S.gifts).reduce((a,b)=>a+b,0);
+  el.giftSub.textContent = total
+    ? `已经收到 ${total} 件礼物，共 ${Object.keys(S.gifts).length} 种`
+    : '生长度攒满一次，就会变出一件礼物';
+  el.giftBox.innerHTML = GIFTS.map((g,i)=>{
+    const c = S.gifts[g.n] || 0;
+    return `<div class="gsl r${g.r} ${c?'has':'locked'}" data-i="${i}">
+      <span class="glow"></span>
+      ${c ? g.e : '❔'}
+      ${c > 1 ? `<span class="cnt">×${c}</span>` : ''}
+    </div>`;
+  }).join('');
+  el.giftBox.querySelectorAll('.gsl').forEach(s=>{
+    if(!s.classList.contains('has')) return;
+    s.addEventListener('click', ()=>{
+      SFX.click();
+      const g = GIFTS[+s.dataset.i];
+      el.giftDetail.innerHTML = `${g.e} <b>${g.n}</b> · <span style="color:${['#7c8aa0','#4a7fd4','#c9920c'][g.r]}">${RARITY[g.r]}</span><br>${g.d}`;
+    });
+  });
+}
+
+/* ---------------- 16. 事件绑定 ---------------- */
+el.btnFeed.addEventListener('click', doFeed);
+el.btnPet .addEventListener('click', doPet);
+el.btnPlay.addEventListener('click', doPlay);
+
+el.btnGift.addEventListener('click', ()=>{
+  SFX.click(); renderGiftBox(); openModal(el.modalGift);
+});
+
+el.btnMenu.addEventListener('click', ()=>{
+  SFX.click();
+  el.menuName.textContent = byId(S.chosen).name;
+  el.miSoundDesc.textContent = S.muted ? '关（已静音）' : '开';
+  el.miStatsDesc.textContent = `第 ${S.day} 天 · Lv.${S.lv} · 礼物 ${S.giftTotal} 件`;
+  openModal(el.modalMenu);
+});
+
+$('miSound').addEventListener('click', ()=>{
+  S.muted = !S.muted; save();
+  el.miSoundDesc.textContent = S.muted ? '关（已静音）' : '开';
+  if(!S.muted){ SFX.click(); toast('音效已开启 🔊'); }
+  else toast('已静音 🔇');
+});
+
+$('miSwitch').addEventListener('click', ()=>{
+  closeModal(el.modalMenu);
+  // 保留进度，只换外观
+  el.screenGame.classList.remove('on');
+  el.screenPick.classList.add('on');
+  window.scrollTo({top:0, behavior:'smooth'});
+  toast('换一只是可以的，进度会跟着你走 💫');
+});
+
+$('miStats').addEventListener('click', ()=>{
+  closeModal(el.modalMenu);
+  const days = Math.max(1, Math.round((Date.now() - S.bornAt)/86400000) + 1);
+  const u = byId(S.chosen);
+  el.statsSub.textContent = `${u.name} · ${u.en}`;
+  el.statsBody.innerHTML = `
+    <div class="giftdetail" style="min-height:auto;line-height:2">
+      🐴 伙伴：<b>${u.name}</b>（${u.tag}）<br>
+      📅 在游戏里一起度过了 <b>${S.day}</b> 天<br>
+      🕐 真实陪伴：<b>${days}</b> 天<br>
+      ⭐ 当前等级：<b>Lv.${S.lv}</b>（生长度上限 ${growthCap(S.lv)}）<br>
+      🌿 喂草次数：<b>${S.feeds}</b> 根<br>
+      🤚 抚摸次数：<b>${S.pets}</b> 次<br>
+      🎠 玩耍次数：<b>${S.plays}</b> 次<br>
+      🎁 收到礼物：<b>${S.giftTotal}</b> 件（${Object.keys(S.gifts).length} 种）
+    </div>`;
+  openModal(el.modalStats);
+});
+
+$('miReset').addEventListener('click', ()=>{
+  if(!confirm('确定要重新开始吗？所有进度和魔法礼品都会消失。')) return;
+  localStorage.removeItem(SAVE_KEY);
+  location.reload();
+});
+
+/* ---------------- 17. 主循环 ---------------- */
+let lastTime = performance.now();
+function tick(now){
+  const dt = Math.min(0.5, (now - lastTime)/1000);
+  lastTime = now;
+
+  if(S && S.chosen){
+    checkDay();
+
+    const u = byId(S.chosen);
+    const cap = growthCap(S.lv);
+
+    // 开心度衰减
+    let hd = CFG.HAPPY_DECAY + (u.bonus.happyDecay || 0);
+    if(S.full < CFG.HUNGRY_LINE) hd += CFG.HUNGRY_EXTRA * (1 - S.full/CFG.HUNGRY_LINE);
+    S.happy = Math.max(0, Math.min(100, S.happy - hd*dt));
+    if(S.full >= CFG.CONTENT_LINE) S.happy = Math.min(100, S.happy + CFG.CONTENT_HAPPY*dt);
+
+    // 饱食度衰减
+    S.full = Math.max(0, S.full - CFG.FULL_DECAY*dt);
+
+    // 生长度积累：饱食度 × 开心度
+    if(S.full >= 20 && S.happy >= 15){
+      const rate = CFG.GROWTH_BASE
+                 * (S.full/100)
+                 * (0.35 + 0.65*(S.happy/100))
+                 * (u.bonus.growthGain || 1);
+      S.growth = Math.min(cap, S.growth + rate*dt);
+    }
+
+    // 草地生长
+    S.grassTimer += dt;
+    if(S.grassTimer >= CFG.GRASS_EVERY){
+      S.grassTimer -= CFG.GRASS_EVERY;
+      if(S.grass < CFG.GRASS_MAX){
+        S.grass++;
+        floaty('🌱 +1', 12 + Math.random()*16, '#5fc48b');
+      }
+    }
+
+    checkGrowth();
+    render();
+  }
+  requestAnimationFrame(tick);
+}
+
+/* 自动存档 */
+setInterval(save, 6000);
+window.addEventListener('beforeunload', save);
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) save(); else { checkDay(); lastTime = performance.now(); } });
+
+/* ---------------- 18. 启动 ---------------- */
+(function boot(){
+  S = load();
+  renderPick();
+  const savedId = S.chosen && (typeof S.chosen === 'string' ? S.chosen : S.chosen.id);
+  if(savedId && byId(savedId)){
+    chooseUnicorn(savedId);      // 有存档：直接回到牧场
+  }else{
+    S.chosen = null;
+    el.screenPick.classList.add('on');
+  }
+  lastTime = performance.now();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
