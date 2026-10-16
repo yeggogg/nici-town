@@ -126,10 +126,14 @@ body::before{
 #stable{position:absolute;inset:0;z-index:2;pointer-events:none}
 
 /* 独角兽 */
+/* 三层各管一件事，避免 transform 互相覆盖：
+   .uni-wrap 只管站位（left 由 JS 逐帧改，横向走动）
+   .uni      只管姿态（一条 transform 字符串，全部由 JS 合成）*/
 .uni-wrap{
   position:absolute;left:50%;bottom:15%;height:66%;
-  translate:-50% 0;                 /* 水平居中；JS 的 scale 会在此基础上叠加 */
+  translate:-50% 0;                 /* 居中对齐到 left 指定的位置 */
   pointer-events:none;
+  will-change:left;
 }
 /* 生成的立绘是位图，用 img 呈现；filter 投出柔和落地阴影，让它"站"在草地上 */
 .uni-img{
@@ -138,27 +142,14 @@ body::before{
          drop-shadow(0 1px 3px rgba(60,80,50,.16));
   pointer-events:none;
 }
+/* 呼吸/迈步/弹跳/摇晃全部合成到这一条 transform 上，见 updateUni()。
+   这里不再挂 CSS 动画 —— 否则会盖掉 JS 写的 transform。*/
 .uni{
-  transform-origin:50% 100%;        /* 以脚为轴，呼吸和跳跃才不会飘起来 */
-  animation:breathe 3.6s ease-in-out infinite;
-  transition:transform .18s cubic-bezier(.3,1.6,.5,1);
+  transform-origin:50% 100%;        /* 以脚为轴，动起来才不会飘离地面 */
+  will-change:transform;
 }
-@keyframes breathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-4px) scale(1.014)}}
-.uni.hop{animation:hop .56s cubic-bezier(.3,1.4,.5,1)}
-@keyframes hop{
-  0%{transform:translateY(0) scale(1,1)}
-  22%{transform:translateY(-26px) scale(.95,1.08)}
-  50%{transform:translateY(-6px) scale(1.06,.95)}
-  70%{transform:translateY(-9px) scale(.99,1.02)}
-  100%{transform:translateY(0) scale(1,1)}
-}
-.uni.shake{animation:shake .6s ease}
-@keyframes shake{
-  0%,100%{transform:translateX(0) rotate(0)}
-  15%{transform:translateX(-9px) rotate(-3deg)}
-  35%{transform:translateX(9px) rotate(3deg)}
-  55%{transform:translateX(-6px) rotate(-2deg)}
-  75%{transform:translateX(6px) rotate(2deg)}
+@media(prefers-reduced-motion:reduce){
+  .uni{transition:none}
 }
 
 /* 精灵：飘字 / 小心心 */
@@ -864,14 +855,170 @@ function confetti(n=26){
     setTimeout(()=>d.remove(), 3000);
   }
 }
-function popUni(cls, ms){
-  const g = el.uniWrap.querySelector('.uni');
-  if(!g) return;
-  g.classList.remove('hop','shake');
-  void g.offsetWidth;
-  g.classList.add(cls);
-  setTimeout(()=>g.classList.remove(cls), ms);
+/* ---------------- 8.5 独角兽的自主行为与动画 ----------------
+   走路/呼吸/弹跳全部由 JS 每帧合成成一条 transform，写进 .uni。
+   不用 CSS 动画 —— 否则会和 JS 写的 transform 互相覆盖。*/
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const ANIM = {
+  x: 50,                 // 当前横向位置（舞台宽度的百分比）
+  target: 50,
+  dir: -1,               // -1 = 原图朝向（头朝左）；1 = 水平翻转（头朝右）
+  moving: false,
+  waitUntil: 0,          // 静止到什么时候再决定下一步
+  breath: Math.random()*6.28,
+  step: 0,               // 迈步相位
+  act: null,             // 临时动作 {t, t0, dur, lockMove}
+};
+const WALK = {
+  SPEED : 13,            // 每秒移动的舞台宽度百分比
+  PAUSE : [1500, 4200],  // 每次停下歇多久（毫秒）
+  STEP_HZ: 8.5,          // 每秒迈步频率
+};
+/* 可走范围按实际渲染尺寸算 —— 独角兽差不多占舞台宽的四成，
+   若按固定的 15%~85% 走，靠边时会有一截伸出画面被 overflow 裁掉。
+   抽成纯函数便于单独验证。 */
+const BOUNDS = { min: 20, max: 80 };
+
+function boundsFor(stageW, uniW, padPct=2){
+  if(!(stageW > 0) || !(uniW > 0)) return null;   // 布局还没就绪
+  const half = (uniW / 2 / stageW) * 100;
+  const lo = half + padPct, hi = 100 - half - padPct;
+  if(hi <= lo) return { min: 50, max: 50 };        // 极窄时退化为居中
+  return { min: lo, max: hi };
 }
+
+function recomputeBounds(){
+  const b = boundsFor(el.stage.clientWidth, el.uniWrap.offsetWidth);
+  if(!b) return false;
+  BOUNDS.min = b.min;
+  BOUNDS.max = b.max;
+  ANIM.x      = Math.max(b.min, Math.min(b.max, ANIM.x));
+  ANIM.target = Math.max(b.min, Math.min(b.max, ANIM.target));
+  return true;
+}
+
+addEventListener('resize', recomputeBounds);
+// 布局尺寸可能在进入游戏后才稳定（图片加载、字体回流等），用观察器补算，
+// 而不是赌某一时刻测到的宽度是对的。
+if(window.ResizeObserver){
+  new ResizeObserver(() => recomputeBounds()).observe(el.stage);
+}
+addEventListener('load', recomputeBounds);
+const ACT_DUR = { hop:560, shake:620, cheer:1150, eat:1250 };
+
+function resetAnim(){
+  Object.assign(ANIM, {
+    x:50, target:50, dir:-1, moving:false, waitUntil:performance.now()+900,
+    step:0, act:null,
+  });
+}
+function uniAct(type, dur, lockMove=false){
+  if(REDUCED) return;
+  ANIM.act = { t:type, t0:performance.now(), dur: dur || ACT_DUR[type] || 600, lockMove };
+}
+/* 触发一个临时动作。action 见 ACT_DUR；lockMove 为真时动作期间站着不动 */
+function popUni(type, dur){
+  uniAct(type, dur, type === 'eat' || type === 'cheer');
+}
+
+function updateUni(now, dt){
+  const g = el.uniWrap.querySelector('.uni');
+  if(!g || !S || !S.chosen) return;
+  const t = now / 1000;
+
+  // ===== 1. 行走决策 =====
+  if(ANIM.act && now >= ANIM.act.t0 + ANIM.act.dur) ANIM.act = null;
+  const busy = !!(ANIM.act && ANIM.act.lockMove);   // 吃草/开心时站着别动
+
+  if(!REDUCED && !busy){
+    if(ANIM.moving){
+      const dx = ANIM.target - ANIM.x;
+      const stepLen = WALK.SPEED * dt;
+      if(Math.abs(dx) <= stepLen){
+        ANIM.x = ANIM.target;
+        ANIM.moving = false;
+        ANIM.waitUntil = now + WALK.PAUSE[0] + Math.random()*(WALK.PAUSE[1]-WALK.PAUSE[0]);
+      }else{
+        ANIM.x += Math.sign(dx) * stepLen;
+        ANIM.step += dt * WALK.STEP_HZ;
+      }
+      // 兜底夹紧：目标正常都取自 BOUNDS，但一旦有别的路径写进越界值，
+      // 这里能保证它不会走出画面（宁可少走一点）
+      ANIM.x = Math.max(BOUNDS.min, Math.min(BOUNDS.max, ANIM.x));
+    }else if(now >= ANIM.waitUntil){
+      // 有 35% 概率就地再歇一会儿，免得看着像机械巡逻
+      if(Math.random() < 0.35){
+        ANIM.waitUntil = now + 1200 + Math.random()*2000;
+      }else{
+        let tx = BOUNDS.min + Math.random()*(BOUNDS.max - BOUNDS.min);
+        // 目标太近就往外挪，避免原地小幅抽搐
+        if(Math.abs(tx - ANIM.x) < 18){
+          const side = Math.random() < 0.5 ? -1 : 1;
+          tx = ANIM.x + side * (18 + Math.random()*22);
+        }
+        ANIM.target = Math.max(BOUNDS.min, Math.min(BOUNDS.max, tx));
+        ANIM.dir = ANIM.target < ANIM.x ? -1 : 1;
+        ANIM.moving = true;
+      }
+    }
+  }
+
+  // ===== 2. 合成 transform =====
+  const lvScale = 1 + Math.min(S.lv-1, 6) * 0.035;
+
+  // 呼吸：一直都在，用独立的慢相位
+  const breathe = REDUCED ? 0 : Math.sin(t*1.75 + ANIM.breath) * 3.2;
+
+  // 迈步：上下颠 + 身体左右倾
+  let bobY = 0, sway = 0;
+  if(ANIM.moving){
+    const s = Math.sin(ANIM.step);
+    bobY = -Math.abs(s) * 5;
+    sway = Math.sin(ANIM.step * 0.5) * 2.4;
+  }
+
+  // 临时动作叠加上去
+  let actY = 0, actRot = 0, sx = 1, sy = 1;
+  if(ANIM.act){
+    const p = Math.min(1, (now - ANIM.act.t0) / ANIM.act.dur);
+    const k = Math.sin(p * Math.PI);          // 0→1→0 的包络
+    switch(ANIM.act.t){
+      case 'hop':                              // 喂草：轻轻一跳
+        actY   = -Math.abs(Math.sin(p*Math.PI*2)) * 26 * (1 - p*0.35);
+        sy     = 1 + k*0.06;
+        sx     = 1 - k*0.05;
+        break;
+      case 'cheer':                            // 玩耍/收到礼物：连蹦带摇
+        actY   = -Math.abs(Math.sin(p*Math.PI*4)) * 30 * (1 - p*0.25);
+        actRot = Math.sin(p*Math.PI*6) * 7;
+        sy     = 1 + k*0.08;
+        sx     = 1 - k*0.06;
+        break;
+      case 'shake':                            // 抚摸：左右蹭
+        actRot = Math.sin(p*Math.PI*8) * 7 * (1 - p);
+        break;
+      case 'eat':                              // 吃草：低头点动
+        actRot = -3 + Math.sin(p*Math.PI*6) * 2.2;
+        actY   = 2 + Math.sin(p*Math.PI*6) * 1.5;
+        break;
+    }
+  }
+
+  // 朝向：原画头朝左。向左走不翻转，向右走才翻转。
+  // ANIM.dir 是**移动方向**（-1 左 / +1 右），而 scaleX 需要的是"朝向"，
+  // 两者正好差一个负号 —— 早先直接把 dir 当 scaleX 用，导致它在倒着走。
+  const facing = ANIM.moving ? -ANIM.dir : (ANIM.dir === 1 ? -1 : 1);
+
+  g.style.transform =
+    `translateY(${(breathe + bobY + actY).toFixed(2)}px) ` +
+    `rotate(${(sway + actRot).toFixed(2)}deg) ` +
+    `scale(${(lvScale * sx * facing).toFixed(4)}, ${(lvScale * sy).toFixed(4)})`;
+
+  // ===== 3. 走位 =====
+  el.uniWrap.style.left = ANIM.x.toFixed(2) + '%';
+}
+
 function flashBtn(btn){
   btn.classList.remove('recoil'); void btn.offsetWidth; btn.classList.add('recoil');
 }
@@ -905,6 +1052,7 @@ function chooseUnicorn(id){
   el.screenGame.classList.add('on');
   el.menuName.textContent = byId(id).name;
   renderStable();
+  recomputeBounds();        // 立绘尺寸确定后才知道可走范围有多宽
   checkDay(true);
   render();
   toast(`${byId(id).name} 来到你身边啦 💕`);
@@ -914,10 +1062,9 @@ function renderStable(){
   const u = byId(S.chosen);
   el.uniWrap.innerHTML =
     `<img class="uni uni-img" src="${u.img}" alt="${u.name}" draggable="false">`;
-  const g = el.uniWrap.querySelector('.uni');
-  // 等级越高，独角兽越大一点
-  const sc = 1 + Math.min(S.lv-1, 6) * 0.035;
-  g.style.scale = sc;
+  // 等级缩放在 updateUni() 里合成进 transform 了，这里不要再设 scale，
+  // 否则 CSS scale 会和 transform 的 scale() 叠乘，等级越高越离谱。
+  resetAnim();
 }
 
 /* ---------------- 11. 每日重置 ---------------- */
@@ -1049,7 +1196,7 @@ function doFeed(){
   S.growth = Math.min(growthCap(S.lv), S.growth + CFG.FEED_GROWTH * (u.bonus.growthGain || 1));
 
   flashBtn(el.btnFeed);
-  popUni('hop', 900);      // 位图没有可动的嘴，用一次轻跳表示在吃东西
+  popUni('eat', 1250);     // 低头啃草（原画不能真张嘴，靠低头点动 + 时间暗示）
   SFX.feed(); buzz(10);
 
   const real = Math.round(S.full - before);
@@ -1090,8 +1237,7 @@ function doPlay(){
   S.growth = Math.min(growthCap(S.lv), S.growth + grow);
 
   flashBtn(el.btnPlay);
-  popUni('hop', 600);
-  setTimeout(()=>popUni('hop', 600), 300);
+  popUni('cheer', 1150);   // 连蹦带摇
   SFX.play(); buzz(18);
   burstHearts(7);
   floaty(`🎠 +${amt} 开心`, 50, '#ff5c9d');
@@ -1116,6 +1262,7 @@ function checkGrowth(){
   pendingGifts.push(g);
 
   renderStable();
+  popUni('cheer', 1150);   // 升级时长大了，先高兴一下
   confetti(30);
   SFX.gift(); buzz([22,60,22]);
   save();
@@ -1262,6 +1409,7 @@ function tick(now){
     }
 
     checkGrowth();
+    updateUni(now, dt);
     render();
   }
   requestAnimationFrame(tick);
