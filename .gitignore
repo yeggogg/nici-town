@@ -29,3 +29,6 @@ assets/video/_last_*.json
 # ---- 表情生成的中间产物 ----
 _research/
 assets/expr/_raw/
+
+# ---- UI 图标生成的中间产物 ----
+_research/ui_raw/

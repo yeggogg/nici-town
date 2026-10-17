@@ -91,6 +91,20 @@ body::before{
 }
 .iconbtn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(120,95,160,.16)}
 .iconbtn:active{transform:scale(.94)}
+/* 顶栏图标换成生成的插画。用 img 而不是背景图，
+   这样加载失败时 onerror 还能退回 emoji 兜底。 */
+.iconbtn .ico{width:22px;height:22px;object-fit:contain;pointer-events:none;
+  filter:drop-shadow(0 1px 2px rgba(120,95,160,.22))}
+/* 兜底尺寸：任何 .ico 默认都按行内小图标渲染。
+   不写这条的话，某个容器忘了单独定义尺寸时，
+   图标会按原图（近千像素）撑满整个面板 —— 这个坑踩过一次。 */
+.ico{width:17px;height:17px;object-fit:contain;pointer-events:none;
+  vertical-align:-3px;filter:drop-shadow(0 1px 2px rgba(120,95,160,.2))}
+/* 数值条标签前的小图标 */
+.meter .lb .ico{width:17px;height:17px;vertical-align:-3px;margin-right:3px}
+/* 动作按钮的图标 */
+.btn .ico{width:30px;height:30px;vertical-align:baseline;margin:0;
+  filter:drop-shadow(0 2px 3px rgba(120,95,160,.2))}
 /* 田里有草熟了：按钮冒个小绿点，不用打开也知道该去收了 */
 .iconbtn.hasRipe{position:relative;border-color:#8fd9a8;animation:ripePulse 1.8s ease-in-out infinite}
 .iconbtn.hasRipe::after{
@@ -119,6 +133,113 @@ body::before{
   background-position:center bottom;
   background-size:cover;
   background-repeat:no-repeat;
+}
+/* 田地是一个**场景**，不是弹窗 —— 进田地就是换一张背景图，
+   独角兽那一层隐藏，换成田地格子。这样才有"走过去种地"的感觉。 */
+/* 田地场景要比牧场高一些 —— 背景图是带远山天空的横幅构图，
+   舞台太矮会被 cover 裁得只剩中间一条土垄。
+   这里只在田地场景拉高，牧场维持原尺寸（不然独角兽会显得太小）。*/
+.stage[data-scene="field"]{
+  background-image:url("assets/opt/scene_field.webp?v=1");
+  min-height:clamp(330px, 52vh, 430px);
+}
+.stage[data-scene="field"] #stable,
+.stage[data-scene="field"] .eff,
+.stage[data-scene="field"] .mood{display:none}
+.fieldview{
+  position:absolute;inset:0;z-index:3;
+  display:none;flex-direction:column;
+  padding:42px 14px 14px;
+}
+.stage[data-scene="field"] .fieldview{display:flex}
+/* 四块田垄，2×2 摆在画面下半部。
+   背景图里本来就画了四条垄，格子故意做成**半透明**贴在垄上，
+   让底下的土和木框透出来 —— 看起来像"这块地种了什么"，
+   而不是一块盖住画面的 UI 板。*/
+.fieldplots{
+  flex:1;
+  display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
+  gap:8px 10px;align-content:end;
+  max-height:62%;
+  margin-top:auto;
+}
+/* 格子做成"一块土"的样子，而不是玻璃板 ——
+   背景里已经画好了田垄，盖一层半透明玻璃会显得杂乱；
+   做成深褐色的土块反而能和背景融为一体，看着像真的在地里种。 */
+.plot{
+  position:relative;border-radius:12px;cursor:pointer;
+  padding:6px 7px;text-align:center;
+  font-family:inherit;color:var(--ink);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
+  border:1.5px solid rgba(120,90,60,.55);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(150,110,72,.5), transparent 60%),
+    rgba(72,50,32,.42);
+  box-shadow:inset 0 2px 6px rgba(40,25,12,.45), 0 3px 10px rgba(40,30,20,.28);
+  transition:transform .18s, box-shadow .18s, background .18s;
+  overflow:hidden;
+  backdrop-filter:blur(1.5px);-webkit-backdrop-filter:blur(1.5px);
+}
+.plot:hover{transform:translateY(-3px);box-shadow:inset 0 2px 6px rgba(40,25,12,.45), 0 10px 20px rgba(40,30,20,.36)}
+.plot:active{transform:scale(.96)}
+/* 空地：更暗、虚线边框，一眼看出"这里能种" */
+.plot.empty{
+  border-style:dashed;border-color:rgba(255,235,200,.65);
+  background:rgba(58,40,26,.34);
+}
+.plot.empty:hover{background:rgba(58,40,26,.46)}
+/* 作物插画：占格子主体。
+   用弹性高度而不是固定 px —— 格子在不同屏高下会变，
+   固定 46px 在高屏上会显得很小、留一大片空。*/
+.plot .crop{
+  width:auto;height:min(58%,72px);max-width:80%;
+  object-fit:contain;
+  filter:drop-shadow(0 3px 7px rgba(20,14,6,.46));
+  pointer-events:none;
+}
+.plot .pem{font-size:30px;line-height:1;filter:drop-shadow(0 2px 4px rgba(30,20,10,.3))}
+.plot .pn{font-size:11px;font-weight:900;color:#fff;letter-spacing:.2px;
+  text-shadow:0 1px 3px rgba(30,20,10,.7)}
+.plot .psub{font-size:9.5px;font-weight:700;color:rgba(255,255,255,.9);
+  text-shadow:0 1px 2px rgba(30,20,10,.7);line-height:1.3}
+.plot .pbar{
+  width:100%;height:5px;border-radius:999px;margin-top:2px;
+  background:rgba(0,0,0,.3);overflow:hidden;
+}
+.plot .pbar i{display:block;height:100%;width:0;border-radius:999px;
+  background:linear-gradient(90deg,#a9e28b,#5fc48b);transition:width .3s linear}
+.plot.ripe{
+  /* 熟了的格子用半透明绿，让底下的土色透上来 ——
+     早先用 rgab(...,.42) 实心绿，四个格子变成四块奶绿色板子，
+     把背景画的田垄全盖住了，看着像 UI 而不是地。*/
+  background:
+    radial-gradient(circle at 30% 20%, rgba(180,240,200,.34), transparent 65%),
+    rgba(46,86,58,.34);
+  border-color:#a8f0c2;
+  border-style:solid;
+  animation:ripePulse 1.8s ease-in-out infinite;
+}
+@keyframes ripePulse{0%,100%{box-shadow:0 0 0 0 rgba(120,240,170,.5)}50%{box-shadow:0 0 0 10px rgba(120,240,170,0)}}
+.plot.ripe .crop{animation:emPop .6s cubic-bezier(.3,1.5,.5,1)}
+
+/* 返回牧场 */
+.fieldback{
+  position:absolute;top:10px;left:12px;z-index:5;
+  display:flex;align-items:center;gap:5px;
+  padding:7px 13px;border-radius:999px;cursor:pointer;
+  font-family:inherit;font-size:12px;font-weight:900;color:#fff;
+  background:rgba(30,40,30,.42);border:1px solid rgba(255,255,255,.4);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  transition:background .15s;
+}
+.fieldback:hover{background:rgba(30,40,30,.6)}
+.fieldhint{
+  position:absolute;top:12px;right:12px;z-index:5;
+  font-size:11px;font-weight:800;color:#fff;
+  padding:6px 12px;border-radius:999px;
+  background:rgba(30,40,30,.42);border:1px solid rgba(255,255,255,.35);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  text-shadow:0 1px 2px rgba(0,0,0,.4);
 }
 
 /* 场景图的上下渐晕：顶部压一点保证 HUD 文字可读，底部让脚部落进草里不显生硬 */
@@ -287,45 +408,7 @@ body::before{
 .grassbar{flex:1;height:9px;border-radius:999px;background:rgba(140,120,170,.13);overflow:hidden;box-shadow:inset 0 1px 2px rgba(120,95,160,.12)}
 .grassbar i{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,#a9e28b,#5fc48b);transition:width .5s ease}
 
-/* ============ 田地 ============ */
-.fieldbox{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.plot{
-  position:relative;border-radius:17px;cursor:pointer;
-  padding:11px 10px 10px;text-align:center;
-  background:linear-gradient(180deg,#f4efe4,#e9e0cf);
-  border:1.5px solid #d9cdb6;
-  transition:transform .18s, box-shadow .18s, filter .18s;
-  font-family:inherit;color:var(--ink);
-  min-height:104px;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-}
-.plot:hover{transform:translateY(-3px);box-shadow:0 10px 22px rgba(120,95,160,.18)}
-.plot:active{transform:scale(.97)}
-/* 空着的地：虚线边框 + 淡一点，一眼能看出"这里可以种" */
-.plot.empty{
-  background:rgba(140,120,170,.05);
-  border:1.5px dashed rgba(140,120,170,.4);
-}
-.plot .pem{font-size:30px;line-height:1;filter:drop-shadow(0 2px 4px rgba(120,95,160,.22))}
-.plot .pn{font-size:11.5px;font-weight:900;letter-spacing:.3px}
-.plot .psub{font-size:10px;font-weight:700;color:var(--ink-soft);line-height:1.4}
-/* 生长中：进度条代替倒计时数字，看着更有"在长"的感觉 */
-.plot .pbar{
-  width:100%;height:7px;border-radius:999px;margin-top:3px;
-  background:rgba(140,120,170,.16);overflow:hidden;
-}
-.plot .pbar i{display:block;height:100%;width:0;border-radius:999px;
-  background:linear-gradient(90deg,#a9e28b,#5fc48b);transition:width .3s linear}
-/* 熟了：呼吸光晕，提示可以收了 */
-.plot.ripe{
-  background:linear-gradient(180deg,#eafbef,#d6f5e0);
-  border-color:#8fd9a8;
-  animation:ripePulse 1.8s ease-in-out infinite;
-}
-@keyframes ripePulse{0%,100%{box-shadow:0 0 0 0 rgba(95,196,139,.45)}50%{box-shadow:0 0 0 9px rgba(95,196,139,0)}}
-.plot.ripe .pem{animation:emPop .6s cubic-bezier(.3,1.5,.5,1)}
-
-/* 种子选择器（点空地时弹出） */
+/* ============ 种子选择器 ============ */
 .seedlist{display:flex;flex-direction:column;gap:9px}
 .seedItem{
   display:flex;align-items:center;gap:11px;width:100%;
@@ -613,8 +696,10 @@ body.modal-open{overflow:hidden}
     <div class="grid" id="pickGrid"></div>
 
     <div class="panel tip">
-      🌿 <b>喂草</b> 提升饱食度 &nbsp;·&nbsp; 🤚 <b>抚摸</b> / 🎠 <b>玩耍</b> 提升开心度<br>
-      开心度越高，吃草的效率越高 ✨ 生长度攒满就会变出礼物
+      <img class="ico" src="assets/ui/feed.webp?v=1" alt="" draggable="false" onerror="this.replaceWith('🌿')"> <b>喂草</b> 提升饱食度 &nbsp;·&nbsp;
+      <img class="ico" src="assets/ui/pet.webp?v=1" alt="" draggable="false" onerror="this.replaceWith('🤚')"> <b>抚摸</b> /
+      <img class="ico" src="assets/ui/play.webp?v=1" alt="" draggable="false" onerror="this.replaceWith('🎠')"> <b>玩耍</b> 提升开心度<br>
+      开心度越高，吃草的效率越高 <img class="ico" src="assets/ui/star.webp?v=1" alt="" draggable="false" onerror="this.replaceWith('✨')"> 生长度攒满就会变出礼物
     </div>
   </section>
 
@@ -626,8 +711,8 @@ body.modal-open{overflow:hidden}
       <div class="spacer"></div>
       <div class="chip" id="chipDay">第 1 天</div>
       <div class="chip sun" id="chipLv">Lv.1</div>
-      <button class="iconbtn" id="btnField" title="小田地">🌾</button>
-      <button class="iconbtn" id="btnGift" title="魔法礼品柜">🎁</button>
+      <button class="iconbtn" id="btnField" title="小田地"><img class="ico" src="assets/ui/wheat.webp?v=1" alt="田地" draggable="false" onerror="this.replaceWith('🌾')"></button>
+      <button class="iconbtn" id="btnGift" title="魔法礼品柜"><img class="ico" src="assets/ui/gift.webp?v=1" alt="礼品柜" draggable="false" onerror="this.replaceWith('🎁')"></button>
       <button class="iconbtn" id="btnMenu" title="更多">⋯</button>
     </div>
 
@@ -642,22 +727,29 @@ body.modal-open{overflow:hidden}
         <div class="uni-wrap" id="uniWrap"></div>
         <div class="floaties" id="floaties"></div>
       </div>
+
+      <!-- 田地：主画面里的场景视图（不是弹窗） -->
+      <div class="fieldview" id="fieldView">
+        <button class="fieldback" id="fieldBack">‹ 回牧场</button>
+        <div class="fieldhint" id="fieldHint">种下草籽，等它长熟</div>
+        <div class="fieldplots" id="fieldBox"></div>
+      </div>
     </div>
 
     <div class="panel">
       <div class="meters">
         <div class="meter">
-          <div class="lb">💗 开心度</div>
+          <div class="lb"><img class="ico" src="assets/ui/heart.webp?v=1" alt="" draggable="false" onerror="this.replaceWith('💗')"> 开心度</div>
           <div class="bar" id="barHappy"><div class="shine" id="shHappy"></div><div class="fill" id="fillHappy"></div></div>
           <div class="num" id="numHappy">0</div>
         </div>
         <div class="meter">
-          <div class="lb">🌿 饱食度</div>
+          <div class="lb"><img class="ico" src="assets/ui/grass_leaf.webp?v=1" alt="" draggable="false" onerror="this.replaceWith('🌿')"> 饱食度</div>
           <div class="bar" id="barFull"><div class="shine" id="shFull"></div><div class="fill" id="fillFull"></div></div>
           <div class="num" id="numFull">0</div>
         </div>
         <div class="meter">
-          <div class="lb">✨ 生长度</div>
+          <div class="lb"><img class="ico" src="assets/ui/star.webp?v=1" alt="" draggable="false" onerror="this.replaceWith('✨')"> 生长度</div>
           <div class="bar" id="barGrowth"><div class="shine" id="shGrowth"></div><div class="fill" id="fillGrowth"></div></div>
           <div class="num" id="numGrowth">0</div>
         </div>
@@ -667,19 +759,19 @@ body.modal-open{overflow:hidden}
     <div class="actions">
       <button class="btn feed" id="btnFeed">
         <span class="badge" id="badgeGrass">0</span>
-        <span class="em">🌿</span>
+        <img class="ico" src="assets/ui/feed.webp?v=1" alt="" draggable="false" onerror="this.replaceWith('🌿')">
         <span class="tx">喂草</span>
         <span class="sub" id="subFeed">+0 饱食</span>
       </button>
       <button class="btn" id="btnPet">
         <span class="badge" id="badgePet">0</span>
-        <span class="em">🤚</span>
+        <img class="ico" src="assets/ui/pet.webp?v=1" alt="" draggable="false" onerror="this.replaceWith('🤚')">
         <span class="tx">抚摸</span>
         <span class="sub" id="subPet">+18 开心</span>
       </button>
       <button class="btn" id="btnPlay">
         <span class="badge" id="badgePlay">0</span>
-        <span class="em">🎠</span>
+        <img class="ico" src="assets/ui/play.webp?v=1" alt="" draggable="false" onerror="this.replaceWith('🎠')">
         <span class="tx">玩耍</span>
         <span class="sub" id="subPlay">+26 开心</span>
       </button>
@@ -687,7 +779,7 @@ body.modal-open{overflow:hidden}
 
     <div class="panel row2">
       <div class="grassfield">
-        <span>🌿 存草</span>
+        <span><img class="ico" src="assets/ui/grass_leaf.webp?v=1" alt="" draggable="false" onerror="this.replaceWith('🌿')"> 存草</span>
         <div class="grassbar"><i id="grassFill"></i></div>
       </div>
       <div class="chip" id="chipGift">🎁 0</div>
@@ -695,20 +787,8 @@ body.modal-open{overflow:hidden}
   </section>
 </div>
 
-<!-- ========== 田地 ========== -->
-<!-- data-nobg：点背景不关，避免误触（种田要连着种几块地） -->
-<div class="modal" id="modalField" data-nobg>
-  <div class="sheet">
-    <button class="closex" data-close>✕</button>
-    <h2>🌾 小田地</h2>
-    <p class="sub" id="fieldSub">种下草籽，等它长熟，收草喂独角兽</p>
-    <div class="fieldbox" id="fieldBox"></div>
-    <div style="height:14px"></div>
-    <button class="btn-primary" data-close>好 的</button>
-  </div>
-</div>
-
-<!-- ========== 选种子 ========== -->
+<!-- ========== 选种子（这个还是弹窗：选种子是一次性决策，
+     做成覆盖层比塞进场景里更清楚）========== -->
 <div class="modal" id="modalSeed" data-nobg>
   <div class="sheet">
     <button class="closex" data-close>✕</button>
@@ -1136,7 +1216,8 @@ const el = {
   subFeed:$('subFeed'), subPet:$('subPet'), subPlay:$('subPlay'),
   chipDay:$('chipDay'), chipLv:$('chipLv'), chipGift:$('chipGift'), grassFill:$('grassFill'),
   btnGift:$('btnGift'), btnMenu:$('btnMenu'), btnField:$('btnField'),
-  modalField:$('modalField'), fieldBox:$('fieldBox'), fieldSub:$('fieldSub'),
+  stage:$('stage'), fieldView:$('fieldView'), fieldBox:$('fieldBox'),
+  fieldBack:$('fieldBack'), fieldHint:$('fieldHint'),
   modalSeed:$('modalSeed'), seedList:$('seedList'), seedTitle:$('seedTitle'),
   seedSub:$('seedSub'),
   modalGift:$('modalGift'), giftBox:$('giftBox'), giftDetail:$('giftDetail'), giftSub:$('giftSub'),
@@ -1693,17 +1774,17 @@ function renderField(){
 
   // 熟了的地要显示进度条在走，所以签名里带上百分比
   const sig = S.plots.map(p => !p ? '_' : `${p.k}:${Math.round(plotPct(p)*100)}`).join('|')
-            + `#${ripeCount()}#${Object.values(S.seedBag).join(',')}`;
+            + `#${ripeCount()}#${Object.values(S.seedBag).join(',')}#${S.chosen}`;
   if(sig === fieldSig) return;
   fieldSig = sig;
 
   const ripe = ripeCount();
 
-  // 田间提示：熟了就在按钮上冒个红点（关着弹窗也要更新）
+  // 田里有熟的就给按钮冒个绿点（不在田地场景时也能看到）
   if(el.btnField) el.btnField.classList.toggle('hasRipe', ripe > 0);
 
-  // 弹窗没开就不用重建格子了
-  if(!el.modalField.classList.contains('on')) return;
+  // 不在田地场景里就不用重建格子
+  if(el.stage.dataset.scene !== 'field') return;
 
   const u = byId(S.chosen);
   el.fieldBox.innerHTML = S.plots.map((p, i) => {
@@ -1719,27 +1800,38 @@ function renderField(){
     const pct  = Math.round(plotPct(p) * 100);
     const left = Math.max(0, Math.ceil((seed.growMs - (Date.now() - p.at)) / 1000));
     const fav  = u && u.fav === seed.k;
+
+    /* 作物用生成的插画；万一图还没生成好，退回 emoji 兜底，
+       免得格子里空一块。 */
+    const art = `<img class="crop" src="assets/crops/${seed.k}.webp?v=${ASSET_V}"
+                      alt="${seed.n}" draggable="false"
+                      onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'pem',textContent:'${seed.em}'}))">`;
+
     if(isRipe){
       const got = Math.round(seed.yield * (fav ? FIELD.FAV_BONUS : 1));
       return `<button class="plot ripe" data-harvest="${i}">
-        <span class="pem">${seed.em}</span>
+        ${art}
         <span class="pn">${seed.n}${fav ? ' 💖' : ''}</span>
-        <span class="psub">长好了！点一下收割 +${got}</span>
+        <span class="psub">点一下收割 +${got}</span>
       </button>`;
     }
     return `<div class="plot">
-      <span class="pem">${seed.em}</span>
+      ${art}
       <span class="pn">${seed.n}${fav ? ' 💖' : ''}</span>
       <span class="psub">还有 ${left} 秒</span>
       <span class="pbar"><i style="width:${pct}%"></i></span>
     </div>`;
   }).join('');
 
-  // 地里空闲的块数、以及能收几块，写在标题下
+  // 顶部提示条
   const empty = S.plots.filter(p => !p).length;
-  el.fieldSub.textContent = ripe > 0 ? `${ripe} 块可以收了！`
-                          : empty > 0 ? `还有 ${empty} 块空地可以种`
-                          : '都在长着，等一会儿就好';
+  el.fieldHint.textContent = ripe > 0 ? `${ripe} 块可以收了！`
+                           : empty > 0 ? `${empty} 块空地可以种`
+                           : '都在长着，等一会儿就好';
+
+  // 种子存量也挂在提示里，省得每次都要点开才知道还剩多少
+  const bagTotal = Object.values(S.seedBag).reduce((a,b)=>a+b,0);
+  if(bagTotal === 0) el.fieldHint.textContent = '种子用完了…';
 }
 
 /* 打开选种子的弹窗（点空地时）*/
@@ -1912,10 +2004,22 @@ el.btnGift.addEventListener('click', ()=>{
   SFX.click(); renderGiftBox(); openModal(el.modalGift);
 });
 
-/* ---- 田地 ---- */
-el.btnField.addEventListener('click', ()=>{
-  SFX.click(); renderField(); openModal(el.modalField);
-});
+/* ---- 田地：整屏换场景，不是弹窗 ---- */
+function enterField(){
+  el.stage.dataset.scene = 'field';
+  fieldSig = '';            // 强制重建一次格子（刚才不在场景里，DOM 是空的）
+  renderField();
+  SFX.click();
+}
+function exitField(){
+  el.stage.dataset.scene = '';
+  SFX.click();
+  // 回牧场后独角兽还在原地，不用重建
+  render();
+}
+
+el.btnField.addEventListener('click', enterField);
+el.fieldBack.addEventListener('click', exitField);
 
 /* 田地里的点击：空地打开选种子，熟了的地直接收。
    用事件委托，因为 renderField 每次都会重建这些节点。 */
