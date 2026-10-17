@@ -2579,7 +2579,32 @@ function playIntro(onDone){
     if(safety){ clearTimeout(safety); safety = null; }
     el.intro.classList.remove('needtap');
     el.introSkip.textContent = '跳过 ›';
+    watchEnd();
   }, {once:true});
+
+  /* 播完必须进游戏。
+     这条差点丢了 —— 某次改 playing 逻辑时被一并删掉，
+     症状就是"播完停在最后一帧，再点一下又重播，永远进不去"。
+     它和 skip / error 一样，都是完成路径，缺一条就会卡死。 */
+  el.introVid.addEventListener('ended', finish, {once:true});
+
+  /* ended 事件在某些机型上不一定触发（尤其是代码里改过 src / 被系统接管过）。
+     所以再加一个看门狗：播到结尾附近且已经停住，就直接当成放完。
+     没有这层的话，once 的 ended 一旦没来，玩家就永远卡在最后一帧。*/
+  const isAtEnd = ()=>{
+    const v = el.introVid;
+    return v.duration > 0 && v.currentTime >= v.duration - 0.15;
+  };
+  function watchEnd(){
+    const iv = setInterval(()=>{
+      if(done){ clearInterval(iv); return; }
+      const v = el.introVid;
+      if(v.ended || (isAtEnd() && v.paused)){ clearInterval(iv); finish(); }
+    }, 300);
+    // 再兜一层：视频总时长 + 3 秒还没结束，就别等了
+    setTimeout(()=>{ clearInterval(iv); if(!done) finish(); },
+               (el.introVid.duration > 0 ? el.introVid.duration : 8) * 1000 + 3000);
+  }
 
   /* 注意：这里**不要**再加"帧没刷新就判失败"的检测。
      试过用 requestVideoFrameCallback 判断画面是否在动，结果在一些浏览器上
