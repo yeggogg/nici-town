@@ -114,43 +114,54 @@ body::before{
   box-shadow:0 1px 4px rgba(60,150,100,.5);
 }
 
-/* ============ 田地入口（草地上的木牌）============
-   放在舞台右下角，像真的插在地里的一块路标。
-   点击区域比图形本身大一圈，手机上更好点到。*/
+/* ============ 田地入口（草地上的一块小木牌）============
+   位置：草地右上角、靠近地平线（远山与草地的交界约在 52% 处）。
+   尺寸刻意做小 —— 它是路边的一块指示牌，不是 UI 按钮。
+   加大点击热区靠 padding，不靠放大图形。*/
 .fieldgate{
-  position:absolute;right:3%;bottom:12%;z-index:4;
-  width:31%;max-width:132px;
-  padding:0;border:none;background:none;cursor:pointer;
+  position:absolute;right:5%;top:49%;z-index:4;
+  width:13.5%;max-width:70px;
+  padding:10px 8px 8px;            /* 透明热区，比图形大一圈，手机上好点 */
+  margin:-10px -8px -8px;          /* 抵消 padding，视觉位置不受影响 */
+  border:none;background:none;cursor:pointer;
   font-family:inherit;
   display:flex;flex-direction:column;align-items:center;gap:0;
   -webkit-tap-highlight-color:transparent;
-  /* 同样：只在 filter 上做反馈，**不动几何** —— 否则会抖动 */
+  /* 只在 filter 上做反馈，**不动几何** —— 否则会抖动 */
   transition:filter .18s;
 }
-.fieldgate:hover{filter:brightness(1.1) saturate(1.06)}
-.fieldgate:active{filter:brightness(.92)}
+.fieldgate:hover{filter:brightness(1.08) saturate(1.05)}
+.fieldgate:active{filter:brightness(.93)}
 .fieldgate .gateArt{
   width:100%;height:auto;display:block;pointer-events:none;
-  filter:drop-shadow(0 6px 10px rgba(50,70,40,.4));
+  /* 投影跟着木牌走，方向朝右下 —— 和场景里左上方来的阳光一致，
+     这样才不像是"贴上去的" */
+  filter:drop-shadow(2px 4px 5px rgba(45,65,38,.42));
 }
-/* 木牌下方的文字条 */
+/* 木牌脚下的一小片阴影，把它"钉"在草地上。
+   没有这个会显得木牌浮在画面之上。*/
+.fieldgate::before{
+  content:'';position:absolute;
+  left:50%;bottom:14%;translate:-50% 0;
+  width:54%;height:7px;border-radius:50%;
+  background:radial-gradient(ellipse, rgba(40,70,35,.38), transparent 72%);
+  pointer-events:none;
+}
+/* 木牌下方的文字：极简，一行小字 */
 .fieldgate .gateLabel{
-  margin-top:-6%;
+  margin-top:-2px;
   display:flex;flex-direction:column;align-items:center;
-  padding:4px 12px 5px;border-radius:999px;
-  background:rgba(48,62,42,.62);
-  border:1px solid rgba(255,255,255,.34);
-  backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
-  box-shadow:0 3px 10px rgba(30,45,25,.3);
   pointer-events:none;
 }
 .fieldgate .gateLabel b{
-  font-size:11.5px;font-weight:900;color:#fff;letter-spacing:.4px;
-  text-shadow:0 1px 3px rgba(0,0,0,.5);line-height:1.25;
+  font-size:9.5px;font-weight:900;color:#fff;letter-spacing:.3px;
+  text-shadow:0 1px 3px rgba(30,45,25,.9), 0 0 6px rgba(30,45,25,.6);
+  line-height:1.2;
 }
 .fieldgate .gateLabel i{
-  font-size:9.5px;font-weight:700;font-style:normal;
-  color:rgba(255,255,255,.86);line-height:1.25;
+  font-size:8px;font-weight:700;font-style:normal;
+  color:rgba(255,255,255,.95);line-height:1.2;
+  text-shadow:0 1px 3px rgba(30,45,25,.9), 0 0 6px rgba(30,45,25,.6);
 }
 /* 有草熟了：木牌上方冒一颗会跳的小圆点 */
 .fieldgate .gateRipe{
@@ -246,11 +257,11 @@ body::before{
   cursor:pointer;border:none;background:none;padding:0;
   font-family:inherit;
   -webkit-tap-highlight-color:transparent;
+  /* 给内部的绝对定位元素（作物、标签）当参照系 */
+  isolation:isolate;
   /* hover 时**绝对不能**加 translate / scale / top 变化：
      元素一动，指针就可能落到它外面 -> mouseleave -> 复位 ->
-     指针又进去 -> 无限抖动，根本点不中。
-     这就是之前"悬停空地框一直抖"的真正原因。
-     要反馈就改 filter 和内部元素的透明度，别动几何。 */
+     指针又进去 -> 无限抖动，根本点不中。 */
   transition:filter .16s;
 }
 .bed:hover{filter:brightness(1.12) saturate(1.08)}
@@ -265,20 +276,32 @@ body::before{
 }
 .bed:hover .bedglow{opacity:1}
 
-/* 作物：直接立在土上，不套任何容器。
-   高度给到 84% —— 之前 62% 时土面大片空着，看着像没种东西。
-   生长过程用 scale 逐步变大，进度写在作物本身上。 */
-.bed .crop{
-  position:relative;
-  height:84%;width:auto;max-width:94%;
+/* 作物：**不放在 .bed 里面**，而是单独定位在场景坐标上。
+   两个原因：
+     1. .bed 用 clip-path 裁成梯形，作物放进去会被裁掉一截
+        —— 这就是"长大之后超出显示框"的来源。
+     2. 各块地的底边高度不一样（80.96 / 85.16 / 82.13 / 85.84），
+        按各自的底边定位，四株作物就会参差不齐。
+   现在统一落在同一条地平线（GROUND）上，看起来像一排种下去的。 */
+.crop{
+  position:absolute;
+  bottom:var(--ground, 78%);
+  translate:-50% 0;            /* 水平居中到那一块地的中线 */
+  height:auto;
+  max-height:19%;              /* 不再顶出田垄 */
+  max-width:13%;
   object-fit:contain;
-  transform-origin:50% 96%;        /* 以根部为基准长大，像从土里冒出来 */
-  filter:drop-shadow(0 5px 9px rgba(28,18,8,.55));
+  transform-origin:50% 100%;   /* 以根部为基准长大 */
+  filter:drop-shadow(0 4px 7px rgba(28,18,8,.5));
   pointer-events:none;
-  transition:transform .6s ease-out;
+  transition:transform .55s ease-out;
 }
-.bed .pem{position:relative;font-size:30px;line-height:1;pointer-events:none;
-  filter:drop-shadow(0 2px 5px rgba(30,20,10,.5))}
+.crop.pem{
+  width:auto;height:auto;
+  font-size:26px;line-height:1;
+  translate:-50% -45%;
+  filter:drop-shadow(0 2px 5px rgba(30,20,10,.5));
+}
 
 /* 空地：土面上一个淡白色的 "+"，平时也隐约可见 ——
    完全隐藏的话玩家不知道这块地能点。悬停时变亮。 */
@@ -1192,6 +1215,12 @@ const BEDS = [
   [[68.10, 54.98], [80.99, 54.98], [91.67, 85.84], [76.43, 85.84]],
 ];
 
+/* 所有作物共用的地平线（图片百分比，从顶部算）。
+   四块地是**并排**的，深度差不多，但分割出来的底边高度有
+   80.96 / 85.16 / 82.13 / 85.84 的差异 —— 各自按底边摆，
+   四株作物就会高低不齐。取一个统一的基线反而更像"一排种下去"。*/
+const GROUND_Y = 80;
+
 /* 四边形 -> CSS 定位 + clip-path。
    先求包围盒（left/top/width/height），再用 clip-path 裁成梯形 ——
    这样点在梯形之外不会误触，比直接摆矩形准。*/
@@ -1918,18 +1947,25 @@ function checkRipe(){
   lastRipe = n;
 }
 
-/* 画田地。每帧会被调，但只在内容真的变了才重建 DOM。
-   弹窗关着时只更新按钮上的红点、不重建格子 ——
-   否则会白白销毁重建 DOM（用户根本没在看那个界面）。*/
+/* ============ 田地的渲染 ============
+   这里必须分成两件事，否则 hover 会一直闪：
+
+   「结构」= 哪块地种了什么、熟没熟、换了哪只独角兽。
+   「进度」= 作物长到多大了、还剩几秒。
+
+   早先把进度也算进重建签名里，作物生长时每帧都不一样，
+   于是 **DOM 每帧被重建一次**（实测 3 秒重建 21 次）。
+   元素被替换后 :hover 状态自然中断，指针再进来又触发一次，
+   表现就是"悬停时一直闪"。
+   现在只在结构变化时重建，进度直接改进已有节点的 style。 */
+function fieldStructSig(){
+  return S.plots.map(p => !p ? '_' : `${p.k}:${plotReady(p) ? 'R' : 'G'}`).join('|')
+       + `#${byId(S.chosen).id}`;
+}
 let fieldSig = '';
+
 function renderField(){
   if(!S || !el.fieldBox) return;
-
-  // 熟了的地要显示进度条在走，所以签名里带上百分比
-  const sig = S.plots.map(p => !p ? '_' : `${p.k}:${Math.round(plotPct(p)*100)}`).join('|')
-            + `#${ripeCount()}#${Object.values(S.seedBag).join(',')}#${S.chosen}`;
-  if(sig === fieldSig) return;
-  fieldSig = sig;
 
   const ripe = ripeCount();
 
@@ -1940,65 +1976,118 @@ function renderField(){
     if(el.gateSub.textContent !== txt) el.gateSub.textContent = txt;
   }
 
-  // 不在田地场景里就不用重建格子
+  // 不在田地场景里就不用动 DOM
   if(el.stage.dataset.scene !== 'field') return;
 
+  const sig = fieldStructSig();
+  if(sig !== fieldSig){
+    fieldSig = sig;
+    buildField();
+  }
+  updateFieldProgress();     // 每帧都跑，但只改 style/文本，不碰结构
+}
+
+/* 重建田垄结构。只在种/收/成熟/换角色时调用。*/
+/* 每块地的中心 x，以及所有作物共用的地平线。
+   bottom 是**距容器底部**的百分比，所以要用 100 - GROUND_Y 换算 ——
+   直接用 GROUND_Y 作物会长到天上去（这个方向踩过一次）。 */
+function bedGround(i){
+  const q = BEDS[i];
+  const xs = q.map(p => p[0]);
+  return {
+    cx: (Math.min(...xs) + Math.max(...xs)) / 2,
+    bottom: 100 - GROUND_Y,
+  };
+}
+
+function buildField(){
   const u = byId(S.chosen);
-  el.fieldBox.innerHTML = S.plots.map((p, i) => {
-    /* 每块地按量出来的梯形定位。**没有任何框** ——
-       .bed 是全透明的热区，只有作物和一点点字浮在土面上。 */
+
+  /* 两块 DOM 分开建：
+       .bed   透明梯形热区（负责点击，被 clip-path 裁成梯形）
+       .crop  作物（**不能**放在热区里，否则会被裁剪掉一截）
+     早先作物嵌在 .bed 内部，成熟放大时就被梯形裁掉了，
+     这正是"长大之后超出显示框"的原因。 */
+  let beds = '', crops = '';
+
+  S.plots.forEach((p, i) => {
     const style = bedStyle(BEDS[i]);
+    const { cx, bottom } = bedGround(i);
     const glow  = `<span class="bedglow"></span>`;
 
     if(!p){
-      return `<button class="bed" style="${style}" data-plant="${i}"
-                      aria-label="第 ${i+1} 块空地，点击种下草籽">
+      beds += `<button class="bed" style="${style}" data-plant="${i}"
+                       aria-label="第 ${i+1} 块空地，点击种下草籽">
         ${glow}
         <span class="plus">＋</span>
         <span class="tip">种点什么</span>
       </button>`;
+      return;
     }
 
     const seed   = seedOf(p.k);
     const isRipe = plotReady(p);
-    const pct    = plotPct(p);
-    const left   = Math.max(0, Math.ceil((seed.growMs - (Date.now() - p.at)) / 1000));
     const fav    = u && u.fav === seed.k;
-
-    /* 作物用生成的插画；万一图缺失就退回 emoji，免得土面上空一块。
-       生长过程靠 scale 从 0.35 长到 1 —— 进度直接写在作物身上，
-       不需要进度条（那样又变回 UI 了）。*/
-    const grow = isRipe ? 1 : 0.35 + 0.65 * pct;
-    const art = `<img class="crop" src="assets/crops/${seed.k}.webp?v=${ASSET_V}"
-                      alt="${seed.n}" draggable="false"
-                      style="transform:scale(${grow.toFixed(3)})"
-                      onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'pem',textContent:'${seed.em}'}))">`;
 
     if(isRipe){
       const got = Math.round(seed.yield * (fav ? FIELD.FAV_BONUS : 1));
-      return `<button class="bed ripe" style="${style}" data-harvest="${i}"
-                      aria-label="收获${seed.n}">
+      beds += `<button class="bed ripe" style="${style}" data-harvest="${i}"
+                       aria-label="收获${seed.n}">
         ${glow}
-        ${art}
         <span class="tip">收 +${got}${fav ? ' 💖' : ''}</span>
       </button>`;
+    }else{
+      beds += `<div class="bed" style="${style}">
+        ${glow}
+        <span class="tip">${seed.n}</span>
+      </div>`;
     }
-    return `<div class="bed" style="${style}">
-      ${glow}
-      ${art}
-      <span class="tip">${seed.n} · 还有 ${left} 秒</span>
-    </div>`;
-  }).join('');
+
+    crops += `<img class="crop${isRipe ? ' ripe' : ''}"
+                   src="assets/crops/${seed.k}.webp?v=${ASSET_V}"
+                   alt="${seed.n}" draggable="false"
+                   data-bed="${i}"
+                   style="left:${cx.toFixed(2)}%;--ground:${bottom.toFixed(2)}%"
+                   onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'crop pem',style:this.getAttribute('style'),textContent:'${seed.em}'}))">`;
+  });
+
+  el.fieldBox.innerHTML = beds + crops;
+}
+
+/* 只更新进度：作物大小 + 倒计时文字。
+   刻意不碰 innerHTML —— 一重建，hover 就断了。*/
+function updateFieldProgress(){
+  const crops = el.fieldBox.querySelectorAll('.crop');
+  const beds  = el.fieldBox.querySelectorAll('.bed');
+
+  for(let i = 0; i < S.plots.length; i++){
+    const p = S.plots[i];
+    const crop = el.fieldBox.querySelector(`.crop[data-bed="${i}"]`);
+    const bed  = beds[i];
+    if(!p || !crop) continue;
+
+    const seed = seedOf(p.k);
+    if(!plotReady(p)){
+      const grow = 0.42 + 0.58 * plotPct(p);
+      crop.style.transform = `scale(${grow.toFixed(3)})`;
+      const tip = bed && bed.querySelector('.tip');
+      if(tip){
+        const left = Math.max(0, Math.ceil((seed.growMs - (Date.now() - p.at)) / 1000));
+        const txt = `${seed.n} · ${left} 秒`;
+        if(tip.textContent !== txt) tip.textContent = txt;
+      }
+    }else{
+      crop.style.transform = '';
+    }
+  }
 
   // 顶部提示条
+  const ripe  = ripeCount();
   const empty = S.plots.filter(p => !p).length;
-  el.fieldHint.textContent = ripe > 0 ? `${ripe} 块可以收了！`
-                           : empty > 0 ? `${empty} 块空地可以种`
-                           : '都在长着，等一会儿就好';
-
-  // 种子存量也挂在提示里，省得每次都要点开才知道还剩多少
-  const bagTotal = Object.values(S.seedBag).reduce((a,b)=>a+b,0);
-  if(bagTotal === 0) el.fieldHint.textContent = '种子用完了…';
+  const hint  = ripe > 0 ? `${ripe} 块可以收了！`
+              : empty > 0 ? `${empty} 块空地可以种`
+              : '都在长着，等一会儿就好';
+  if(el.fieldHint.textContent !== hint) el.fieldHint.textContent = hint;
 }
 
 /* 打开选种子的弹窗（点空地时）*/
