@@ -114,6 +114,66 @@ body::before{
   box-shadow:0 1px 4px rgba(60,150,100,.5);
 }
 
+/* ============ 田地入口（草地上的木牌）============
+   放在舞台右下角，像真的插在地里的一块路标。
+   点击区域比图形本身大一圈，手机上更好点到。*/
+.fieldgate{
+  position:absolute;right:3%;bottom:12%;z-index:4;
+  width:31%;max-width:132px;
+  padding:0;border:none;background:none;cursor:pointer;
+  font-family:inherit;
+  display:flex;flex-direction:column;align-items:center;gap:0;
+  -webkit-tap-highlight-color:transparent;
+  /* 同样：只在 filter 上做反馈，**不动几何** —— 否则会抖动 */
+  transition:filter .18s;
+}
+.fieldgate:hover{filter:brightness(1.1) saturate(1.06)}
+.fieldgate:active{filter:brightness(.92)}
+.fieldgate .gateArt{
+  width:100%;height:auto;display:block;pointer-events:none;
+  filter:drop-shadow(0 6px 10px rgba(50,70,40,.4));
+}
+/* 木牌下方的文字条 */
+.fieldgate .gateLabel{
+  margin-top:-6%;
+  display:flex;flex-direction:column;align-items:center;
+  padding:4px 12px 5px;border-radius:999px;
+  background:rgba(48,62,42,.62);
+  border:1px solid rgba(255,255,255,.34);
+  backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
+  box-shadow:0 3px 10px rgba(30,45,25,.3);
+  pointer-events:none;
+}
+.fieldgate .gateLabel b{
+  font-size:11.5px;font-weight:900;color:#fff;letter-spacing:.4px;
+  text-shadow:0 1px 3px rgba(0,0,0,.5);line-height:1.25;
+}
+.fieldgate .gateLabel i{
+  font-size:9.5px;font-weight:700;font-style:normal;
+  color:rgba(255,255,255,.86);line-height:1.25;
+}
+/* 有草熟了：木牌上方冒一颗会跳的小圆点 */
+.fieldgate .gateRipe{
+  position:absolute;top:-2%;right:6%;
+  width:13px;height:13px;border-radius:50%;
+  background:#5fc48b;border:2px solid #fff;
+  box-shadow:0 2px 7px rgba(50,180,110,.65);
+  display:none;
+}
+.fieldgate.hasRipe .gateRipe{display:block;animation:gateBob 1.2s ease-in-out infinite}
+@keyframes gateBob{
+  0%,100%{transform:translateY(0) scale(1)}
+  50%{transform:translateY(-4px) scale(1.12)}
+}
+/* 悬停时木牌下方泛一点暖光，示意"可以走过去" */
+.fieldgate .gateGlow{
+  position:absolute;left:50%;bottom:2%;translate:-50% 0;
+  width:88%;height:38%;border-radius:50%;pointer-events:none;
+  background:radial-gradient(ellipse, rgba(255,246,205,.5), transparent 70%);
+  opacity:0;transition:opacity .18s;
+}
+.fieldgate:hover .gateGlow{opacity:1}
+
 /* ============ 舞台 ============ */
 .stage{
   position:relative;
@@ -139,88 +199,135 @@ body::before{
 /* 田地场景要比牧场高一些 —— 背景图是带远山天空的横幅构图，
    舞台太矮会被 cover 裁得只剩中间一条土垄。
    这里只在田地场景拉高，牧场维持原尺寸（不然独角兽会显得太小）。*/
+/* 田地场景。
+   注意：这里**不再用 CSS background**，改成一张独立的 <img> 图层。
+   原因：background-size:cover 会把图裁掉两侧，而田垄坐标是
+   图片自身百分比。用 CSS 背景的话，两张坐标系对不上，作物会错位。
+   现在由 layoutFieldScene() 按 cover 规则算出精确尺寸写到图层上，
+   田垄坐标就与图片严格 1:1。 */
 .stage[data-scene="field"]{
-  background-image:url("assets/opt/scene_field.webp?v=1");
+  background:linear-gradient(180deg,#8fc9e8,#bfe0a8);
   min-height:clamp(330px, 52vh, 430px);
 }
 .stage[data-scene="field"] #stable,
 .stage[data-scene="field"] .eff,
-.stage[data-scene="field"] .mood{display:none}
+.stage[data-scene="field"] .mood,
+/* 进了田地就把入口木牌藏起来 —— 否则它会浮在田垄上挡住作物，
+   而且已经在地里了，再显示"去小田地"也没意义。 */
+.stage[data-scene="field"] .fieldgate{display:none}
 .fieldview{
   position:absolute;inset:0;z-index:3;
-  display:none;flex-direction:column;
-  padding:42px 14px 14px;
+  display:none;
 }
-.stage[data-scene="field"] .fieldview{display:flex}
-/* 四块田垄，2×2 摆在画面下半部。
-   背景图里本来就画了四条垄，格子故意做成**半透明**贴在垄上，
-   让底下的土和木框透出来 —— 看起来像"这块地种了什么"，
-   而不是一块盖住画面的 UI 板。*/
-.fieldplots{
-  flex:1;
-  display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
-  gap:8px 10px;align-content:end;
-  max-height:62%;
-  margin-top:auto;
+.stage[data-scene="field"] .fieldview{display:block}
+
+/* 场景图层：尺寸和位置由 JS 按 cover 算出，与舞台精确贴合 */
+.fieldscene{
+  position:absolute;
+  left:0;top:0;
+  overflow:visible;
 }
-/* 格子做成"一块土"的样子，而不是玻璃板 ——
-   背景里已经画好了田垄，盖一层半透明玻璃会显得杂乱；
-   做成深褐色的土块反而能和背景融为一体，看着像真的在地里种。 */
-.plot{
-  position:relative;border-radius:12px;cursor:pointer;
-  padding:6px 7px;text-align:center;
-  font-family:inherit;color:var(--ink);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
-  border:1.5px solid rgba(120,90,60,.55);
-  background:
-    radial-gradient(circle at 30% 20%, rgba(150,110,72,.5), transparent 60%),
-    rgba(72,50,32,.42);
-  box-shadow:inset 0 2px 6px rgba(40,25,12,.45), 0 3px 10px rgba(40,30,20,.28);
-  transition:transform .18s, box-shadow .18s, background .18s;
-  overflow:hidden;
-  backdrop-filter:blur(1.5px);-webkit-backdrop-filter:blur(1.5px);
+.fieldscene .bg{width:100%;height:100%;display:block;object-fit:fill;pointer-events:none}
+/* 四块田垄。
+   位置**不是均分网格**，而是从背景图上按土色分割量出来的真实梯形
+   （见 tools/find_beds.py 的产出）。背景里的田垄是透视图 ——
+   上窄下宽、左右向外倾斜，用 2×2 网格去对永远对不上，
+   那正是"一个框硬盖在画上"的违和感来源。
+
+   现在**没有框**：每块地就是一个透明的梯形热区，
+   作物直接长在画好的土面上，看上去就是地里的东西。*/
+.fieldplots{position:absolute;inset:0}
+
+/* 单块地。left/top/width/height 由 JS 按量出的四边形算包围盒，
+   真正的形状用 clip-path 裁成梯形 —— 这样点击和悬停都只落在土面上。 */
+.bed{
+  position:absolute;
+  display:grid;place-items:center;
+  cursor:pointer;border:none;background:none;padding:0;
+  font-family:inherit;
+  -webkit-tap-highlight-color:transparent;
+  /* hover 时**绝对不能**加 translate / scale / top 变化：
+     元素一动，指针就可能落到它外面 -> mouseleave -> 复位 ->
+     指针又进去 -> 无限抖动，根本点不中。
+     这就是之前"悬停空地框一直抖"的真正原因。
+     要反馈就改 filter 和内部元素的透明度，别动几何。 */
+  transition:filter .16s;
 }
-.plot:hover{transform:translateY(-3px);box-shadow:inset 0 2px 6px rgba(40,25,12,.45), 0 10px 20px rgba(40,30,20,.36)}
-.plot:active{transform:scale(.96)}
-/* 空地：更暗、虚线边框，一眼看出"这里能种" */
-.plot.empty{
-  border-style:dashed;border-color:rgba(255,235,200,.65);
-  background:rgba(58,40,26,.34);
+.bed:hover{filter:brightness(1.12) saturate(1.08)}
+.bed:active{filter:brightness(.92)}
+
+/* 悬停时土面泛一层暖光，提示"这块能点" —— 比画边框自然得多 */
+.bedglow{
+  position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 58%,
+             rgba(255,244,205,.6), rgba(255,238,180,.2) 52%, transparent 76%);
+  opacity:0;transition:opacity .18s;
 }
-.plot.empty:hover{background:rgba(58,40,26,.46)}
-/* 作物插画：占格子主体。
-   用弹性高度而不是固定 px —— 格子在不同屏高下会变，
-   固定 46px 在高屏上会显得很小、留一大片空。*/
-.plot .crop{
-  width:auto;height:min(58%,72px);max-width:80%;
+.bed:hover .bedglow{opacity:1}
+
+/* 作物：直接立在土上，不套任何容器。
+   高度给到 84% —— 之前 62% 时土面大片空着，看着像没种东西。
+   生长过程用 scale 逐步变大，进度写在作物本身上。 */
+.bed .crop{
+  position:relative;
+  height:84%;width:auto;max-width:94%;
   object-fit:contain;
-  filter:drop-shadow(0 3px 7px rgba(20,14,6,.46));
+  transform-origin:50% 96%;        /* 以根部为基准长大，像从土里冒出来 */
+  filter:drop-shadow(0 5px 9px rgba(28,18,8,.55));
+  pointer-events:none;
+  transition:transform .6s ease-out;
+}
+.bed .pem{position:relative;font-size:30px;line-height:1;pointer-events:none;
+  filter:drop-shadow(0 2px 5px rgba(30,20,10,.5))}
+
+/* 空地：土面上一个淡白色的 "+"，平时也隐约可见 ——
+   完全隐藏的话玩家不知道这块地能点。悬停时变亮。 */
+.bed .plus{
+  position:relative;
+  font-size:26px;font-weight:300;line-height:1;
+  color:rgba(255,248,228,.95);
+  text-shadow:0 2px 8px rgba(40,25,10,.85), 0 0 16px rgba(255,240,200,.4);
+  opacity:.5;transition:opacity .18s;
   pointer-events:none;
 }
-.plot .pem{font-size:30px;line-height:1;filter:drop-shadow(0 2px 4px rgba(30,20,10,.3))}
-.plot .pn{font-size:11px;font-weight:900;color:#fff;letter-spacing:.2px;
-  text-shadow:0 1px 3px rgba(30,20,10,.7)}
-.plot .psub{font-size:9.5px;font-weight:700;color:rgba(255,255,255,.9);
-  text-shadow:0 1px 2px rgba(30,20,10,.7);line-height:1.3}
-.plot .pbar{
-  width:100%;height:5px;border-radius:999px;margin-top:2px;
-  background:rgba(0,0,0,.3);overflow:hidden;
+.bed:hover .plus{opacity:1}
+
+/* 底部小标签：平时不显示，悬停或成熟时才出现 ——
+   画面不被文字塞满，需要时又有说明。 */
+.bed .tip{
+  position:absolute;left:50%;bottom:3%;
+  translate:-50% 0;
+  padding:3px 10px;border-radius:999px;white-space:nowrap;
+  font-size:10px;font-weight:900;color:#fff;
+  background:rgba(34,44,30,.76);
+  border:1px solid rgba(255,255,255,.34);
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  text-shadow:0 1px 2px rgba(0,0,0,.5);
+  opacity:0;transition:opacity .18s;
+  pointer-events:none;
 }
-.plot .pbar i{display:block;height:100%;width:0;border-radius:999px;
-  background:linear-gradient(90deg,#a9e28b,#5fc48b);transition:width .3s linear}
-.plot.ripe{
-  /* 熟了的格子用半透明绿，让底下的土色透上来 ——
-     早先用 rgab(...,.42) 实心绿，四个格子变成四块奶绿色板子，
-     把背景画的田垄全盖住了，看着像 UI 而不是地。*/
-  background:
-    radial-gradient(circle at 30% 20%, rgba(180,240,200,.34), transparent 65%),
-    rgba(46,86,58,.34);
-  border-color:#a8f0c2;
-  border-style:solid;
-  animation:ripePulse 1.8s ease-in-out infinite;
+.bed:hover .tip{opacity:1}
+
+/* 熟了：作物轻轻上下浮动 + 一圈暖绿光，不画框也一眼看得出 */
+.bed.ripe .crop{animation:ripeBounce 1.6s ease-in-out infinite}
+@keyframes ripeBounce{
+  0%,100%{transform:scale(1) translateY(0)}
+  46%{transform:scale(1.05) translateY(-6px)}
 }
-@keyframes ripePulse{0%,100%{box-shadow:0 0 0 0 rgba(120,240,170,.5)}50%{box-shadow:0 0 0 10px rgba(120,240,170,0)}}
-.plot.ripe .crop{animation:emPop .6s cubic-bezier(.3,1.5,.5,1)}
+.bed.ripe .bedglow{
+  opacity:.85;
+  background:radial-gradient(ellipse at 50% 58%,
+             rgba(170,255,200,.7), rgba(140,240,180,.24) 54%, transparent 78%);
+  animation:ripeGlow 1.7s ease-in-out infinite;
+}
+@keyframes ripeGlow{0%,100%{opacity:.5}50%{opacity:1}}
+.bed.ripe .tip{
+  opacity:1;
+  background:rgba(38,124,74,.9);
+  border-color:rgba(190,255,215,.7);
+  animation:tipPulse 1.5s ease-in-out infinite;
+}
+@keyframes tipPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
 
 /* 返回牧场 */
 .fieldback{
@@ -711,7 +818,6 @@ body.modal-open{overflow:hidden}
       <div class="spacer"></div>
       <div class="chip" id="chipDay">第 1 天</div>
       <div class="chip sun" id="chipLv">Lv.1</div>
-      <button class="iconbtn" id="btnField" title="小田地"><img class="ico" src="assets/ui/wheat.webp?v=1" alt="田地" draggable="false" onerror="this.replaceWith('🌾')"></button>
       <button class="iconbtn" id="btnGift" title="魔法礼品柜"><img class="ico" src="assets/ui/gift.webp?v=1" alt="礼品柜" draggable="false" onerror="this.replaceWith('🎁')"></button>
       <button class="iconbtn" id="btnMenu" title="更多">⋯</button>
     </div>
@@ -728,11 +834,25 @@ body.modal-open{overflow:hidden}
         <div class="floaties" id="floaties"></div>
       </div>
 
+      <!-- 田地入口：草地上的一块木牌区域，点它走过去。
+           不再用顶栏按钮 —— 按钮没有"走到田里"的感觉。 -->
+      <button class="fieldgate" id="btnField" title="去小田地">
+        <span class="gateGlow"></span>
+        <img class="gateArt" src="assets/ui/signpost.webp?v=1" alt=""
+             draggable="false" onerror="this.style.display='none'">
+        <span class="gateLabel"><b>小田地</b><i id="gateSub">去看看 ›</i></span>
+        <span class="gateRipe" id="gateRipe"></span>
+      </button>
+
       <!-- 田地：主画面里的场景视图（不是弹窗） -->
       <div class="fieldview" id="fieldView">
+        <!-- 场景图层：尺寸由 JS 按 cover 规则算出，田垄坐标因此与图片严格对齐 -->
+        <div class="fieldscene" id="fieldScene">
+          <img class="bg" src="assets/opt/scene_field.webp?v=1" alt="" draggable="false">
+          <div class="fieldplots" id="fieldBox"></div>
+        </div>
         <button class="fieldback" id="fieldBack">‹ 回牧场</button>
         <div class="fieldhint" id="fieldHint">种下草籽，等它长熟</div>
-        <div class="fieldplots" id="fieldBox"></div>
       </div>
     </div>
 
@@ -1057,6 +1177,37 @@ const FIELD = {
   SEED_BACK: 1,
 };
 
+/* ============ 田垄坐标 ============
+   从 scene_field.webp 上按土色分割量出来的**真实梯形**（见 tools/find_beds.py）。
+   顺序：左上、右上、右下、左下，单位是图片自身的百分比。
+
+   为什么不能均分：背景里的田垄是透视图，上窄下宽、左右还各自向外倾，
+   用 2×2 网格去对永远差一截 —— 那正是"一个框硬盖在画上"的违和感来源。
+
+   下标对应 S.plots（0~3，从左到右）。*/
+const BEDS = [
+  [[16.80, 54.30], [30.47, 54.30], [18.42, 80.96], [ 1.82, 80.96]],
+  [[34.83, 54.30], [47.20, 54.30], [46.74, 85.16], [28.71, 85.16]],
+  [[51.43, 54.49], [63.54, 54.49], [69.53, 82.13], [52.73, 82.13]],
+  [[68.10, 54.98], [80.99, 54.98], [91.67, 85.84], [76.43, 85.84]],
+];
+
+/* 四边形 -> CSS 定位 + clip-path。
+   先求包围盒（left/top/width/height），再用 clip-path 裁成梯形 ——
+   这样点在梯形之外不会误触，比直接摆矩形准。*/
+function bedStyle(quad){
+  const xs = quad.map(p => p[0]), ys = quad.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const w = Math.max(0.01, x1 - x0), h = Math.max(0.01, y1 - y0);
+  const clip = quad
+    .map(([x, y]) => `${((x - x0) / w * 100).toFixed(2)}% ${((y - y0) / h * 100).toFixed(2)}%`)
+    .join(', ');
+  return `left:${x0.toFixed(2)}%;top:${y0.toFixed(2)}%;` +
+         `width:${w.toFixed(2)}%;height:${h.toFixed(2)}%;` +
+         `clip-path:polygon(${clip});`;
+}
+
 /* 成长曲线。demo 档几乎压平了：配合 FEED_GROWTH = 50，
    Lv.1 两次草、之后一路三次草，始终落在"喂 1~3 次升级"的区间。
    正常档是 100 + (lv-1)*38（越高级越难升）。 */
@@ -1216,7 +1367,9 @@ const el = {
   subFeed:$('subFeed'), subPet:$('subPet'), subPlay:$('subPlay'),
   chipDay:$('chipDay'), chipLv:$('chipLv'), chipGift:$('chipGift'), grassFill:$('grassFill'),
   btnGift:$('btnGift'), btnMenu:$('btnMenu'), btnField:$('btnField'),
+  gateSub:$('gateSub'), gateRipe:$('gateRipe'),
   stage:$('stage'), fieldView:$('fieldView'), fieldBox:$('fieldBox'),
+  fieldScene:$('fieldScene'),
   fieldBack:$('fieldBack'), fieldHint:$('fieldHint'),
   modalSeed:$('modalSeed'), seedList:$('seedList'), seedTitle:$('seedTitle'),
   seedSub:$('seedSub'),
@@ -1780,46 +1933,60 @@ function renderField(){
 
   const ripe = ripeCount();
 
-  // 田里有熟的就给按钮冒个绿点（不在田地场景时也能看到）
+  // 田里有熟的就给木牌冒个绿点（不在田地场景时也要能看到）
   if(el.btnField) el.btnField.classList.toggle('hasRipe', ripe > 0);
+  if(el.gateSub){
+    const txt = ripe > 0 ? `${ripe} 块能收了！` : '去看看 ›';
+    if(el.gateSub.textContent !== txt) el.gateSub.textContent = txt;
+  }
 
   // 不在田地场景里就不用重建格子
   if(el.stage.dataset.scene !== 'field') return;
 
   const u = byId(S.chosen);
   el.fieldBox.innerHTML = S.plots.map((p, i) => {
+    /* 每块地按量出来的梯形定位。**没有任何框** ——
+       .bed 是全透明的热区，只有作物和一点点字浮在土面上。 */
+    const style = bedStyle(BEDS[i]);
+    const glow  = `<span class="bedglow"></span>`;
+
     if(!p){
-      return `<button class="plot empty" data-plant="${i}">
-        <span class="pem">＋</span>
-        <span class="pn">空地</span>
-        <span class="psub">点这里种下草籽</span>
+      return `<button class="bed" style="${style}" data-plant="${i}"
+                      aria-label="第 ${i+1} 块空地，点击种下草籽">
+        ${glow}
+        <span class="plus">＋</span>
+        <span class="tip">种点什么</span>
       </button>`;
     }
-    const seed = seedOf(p.k);
-    const isRipe = plotReady(p);
-    const pct  = Math.round(plotPct(p) * 100);
-    const left = Math.max(0, Math.ceil((seed.growMs - (Date.now() - p.at)) / 1000));
-    const fav  = u && u.fav === seed.k;
 
-    /* 作物用生成的插画；万一图还没生成好，退回 emoji 兜底，
-       免得格子里空一块。 */
+    const seed   = seedOf(p.k);
+    const isRipe = plotReady(p);
+    const pct    = plotPct(p);
+    const left   = Math.max(0, Math.ceil((seed.growMs - (Date.now() - p.at)) / 1000));
+    const fav    = u && u.fav === seed.k;
+
+    /* 作物用生成的插画；万一图缺失就退回 emoji，免得土面上空一块。
+       生长过程靠 scale 从 0.35 长到 1 —— 进度直接写在作物身上，
+       不需要进度条（那样又变回 UI 了）。*/
+    const grow = isRipe ? 1 : 0.35 + 0.65 * pct;
     const art = `<img class="crop" src="assets/crops/${seed.k}.webp?v=${ASSET_V}"
                       alt="${seed.n}" draggable="false"
+                      style="transform:scale(${grow.toFixed(3)})"
                       onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'pem',textContent:'${seed.em}'}))">`;
 
     if(isRipe){
       const got = Math.round(seed.yield * (fav ? FIELD.FAV_BONUS : 1));
-      return `<button class="plot ripe" data-harvest="${i}">
+      return `<button class="bed ripe" style="${style}" data-harvest="${i}"
+                      aria-label="收获${seed.n}">
+        ${glow}
         ${art}
-        <span class="pn">${seed.n}${fav ? ' 💖' : ''}</span>
-        <span class="psub">点一下收割 +${got}</span>
+        <span class="tip">收 +${got}${fav ? ' 💖' : ''}</span>
       </button>`;
     }
-    return `<div class="plot">
+    return `<div class="bed" style="${style}">
+      ${glow}
       ${art}
-      <span class="pn">${seed.n}${fav ? ' 💖' : ''}</span>
-      <span class="psub">还有 ${left} 秒</span>
-      <span class="pbar"><i style="width:${pct}%"></i></span>
+      <span class="tip">${seed.n} · 还有 ${left} 秒</span>
     </div>`;
   }).join('');
 
@@ -2005,9 +2172,38 @@ el.btnGift.addEventListener('click', ()=>{
 });
 
 /* ---- 田地：整屏换场景，不是弹窗 ---- */
+/* 把场景图层按 cover 规则精确贴合舞台。
+   —— 这一步是田垄能对齐的关键。
+   舞台不能直接用 background（cover 会裁掉两侧，坐标系就错位了），
+   所以放一张等比缩放的 <img>，再按图片尺寸算它的实际像素尺寸和偏移。
+   田垄坐标是图片百分比，落在这一层上就永远对得准。*/
+const FIELD_ASPECT = 1536 / 1024;
+function layoutFieldScene(){
+  const sc = $('fieldScene');
+  if(!sc) return;
+  const sw = el.stage.clientWidth, sh = el.stage.clientHeight;
+  if(!(sw > 0 && sh > 0)) return;
+  let w, h;
+  /* cover 规则：取两个缩放比里**大**的那个，保证两个方向都铺满。
+     舞台比图更"宽"（sw/sh 大于图片比例）时以宽度为准，
+     否则以高度为准。这两条早先写反了，结果顶部露出一条空档。 */
+  if(sw / sh >= FIELD_ASPECT){     // 舞台更宽：宽度撑满，上下裁
+    w = sw; h = sw / FIELD_ASPECT;
+  }else{                            // 舞台更高：高度撑满，左右裁
+    h = sh; w = sh * FIELD_ASPECT;
+  }
+  // 底部对齐（田垄在画面下半部，贴底最稳），水平居中
+  sc.style.width  = w + 'px';
+  sc.style.height = h + 'px';
+  sc.style.left   = Math.round((sw - w) / 2) + 'px';
+  sc.style.top    = Math.round(sh - h) + 'px';
+}
+addEventListener('resize', ()=>{ layoutFieldScene(); });
+
 function enterField(){
   el.stage.dataset.scene = 'field';
-  fieldSig = '';            // 强制重建一次格子（刚才不在场景里，DOM 是空的）
+  layoutFieldScene();       // 先摆好图层，再渲染田垄（顺序不能反）
+  fieldSig = '';            // 强制重建一次（刚才不在场景里，DOM 是空的）
   renderField();
   SFX.click();
 }
