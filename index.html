@@ -583,22 +583,31 @@ body::before{
   display:none;align-items:center;justify-content:center;
   background:#0d0f14;
 }
-.intro.on{display:flex;animation:fadeIn .3s ease}
+/* 注意：这里**故意不做 opacity 动画**。
+   iOS Safari 上，容器一旦有 opacity/transform 动画，子元素会被提成
+   独立合成层，<video> 就可能停在合成时的那一帧不再刷新 ——
+   表现正是"点了播放，画面卡在第一帧不动"。
+   淡入效果不值得换这个 bug，所以直接显示。 */
+.intro.on{display:flex}
+/* 退场也改用 transition（不是 animation），同样是为了避开合成层问题 */
+.intro{transition:opacity .55s ease}
+.intro.out{opacity:0}
 .intro video{
   width:100%;height:100%;object-fit:contain;
   display:block;
 }
-.intro.out{animation:introOut .55s ease forwards}
-@keyframes introOut{to{opacity:0}}
-/* 跳过按钮：始终可见，但不用太抢眼 —— 大多数人会看完这 5 秒 */
+/* 跳过按钮：始终可见，但不用太抢眼 —— 大多数人会看完这 5 秒。
+   注意**不要**在这里用 backdrop-filter。
+   iOS Safari 有个已知问题：fixed 容器里的视频，上面再叠一个带
+   backdrop-filter 的元素，会创建独立的合成层，视频就停止出帧 ——
+   表现正是"点了播放，画面定在第一帧不动"。用半透明底色代替。 */
 .intro .skip{
   position:absolute;right:14px;bottom:18px;
   padding:7px 15px;border-radius:999px;
   font-size:12px;font-weight:800;color:#fff;
-  background:rgba(20,22,30,.42);
+  background:rgba(20,22,30,.62);
   border:1px solid rgba(255,255,255,.28);
-  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-  cursor:pointer;opacity:.75;transition:opacity .2s;
+  cursor:pointer;opacity:.85;transition:opacity .2s;
 }
 .intro .skip:hover{opacity:1}
 /* 自动播放被拦时：提示用户点一下，同时把整屏变成可点区域 */
@@ -609,14 +618,19 @@ body::before{
   width:78px;height:78px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
   padding-left:6px;font-size:30px;color:#fff;
-  background:rgba(20,22,30,.42);
+  background:rgba(20,22,30,.62);
   border:2px solid rgba(255,255,255,.5);
-  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
   pointer-events:none;
 }
 @media(prefers-reduced-motion:reduce){
-  /* 动效敏感的人直接跳过，别放视频 */
-  .intro{display:none!important}
+  /* 注意：这里**不能**写 .intro{display:none!important}。
+     iOS 低电量模式会自动开启"减弱动态效果"，那样开场就被整个隐藏了，
+     而 JS 那边（playIntro）在 REDUCED 下本来会改成"等一次点击再播" ——
+     两边打架，结果就是手机上永远看不到开场。
+     所以这里只关掉进出场动画，开场本身交给 JS 决定。 */
+  .intro.on{animation:none}
+  .intro.out{animation:none}
+  .intro.needtap::after{animation:none}
 }
 .picker-head{text-align:center;padding:6px 0 2px}
 .picker-head h1{
@@ -803,15 +817,31 @@ body.modal-open{overflow:hidden}
 
 <!-- 开场动画（seedance 生成，首帧由立绘合成到草地锁定造型）。
 
-     注意 ?v=2：换视频时**必须**把这个号 +1，否则老访客会一直用缓存里的旧文件。
+     注意 ?v=3：换视频时**必须**把这个号 +1，否则老访客会一直用缓存里的旧文件。
 
-     还要注意视频必须是 faststart 的（moov 索引在文件开头）。
-     最初那版 moov 在 99.8% 的位置，浏览器得把 3.4MB 整包下完才能开始播，
-     表现就是"点了播放却定在第一帧"。
-     重新封装：ffmpeg -i in.mp4 -c copy -movflags +faststart out.mp4 -->
+     视频有两个必须满足的约束，踩过一次各一次：
+
+     1. faststart（moov 在文件开头）
+        最初那版 moov 在 99.8% 的位置，浏览器得把整包下完才能开始播，
+        表现就是"点了播放却定在第一帧"。
+        ffmpeg -movflags +faststart
+
+     2. 编码要对移动端友好
+        原来那版是 H.264 **High** profile / 1112x834 / 5.3 Mbps。
+        - High profile 在部分移动芯片上是软件解码，起播慢甚至不动
+        - 1112x834 不是 16 的倍数，有些解码器会直接放弃
+        - 5.3 Mbps 在蜂窝网络下要缓冲很久
+        现在统一成 Main profile / 960x720 / 1.6 Mbps / 无音轨
+        （视频本来就是静音的，那条 AAC 轨纯属浪费）。-->
 <div class="intro" id="intro">
-  <video id="introVid" src="assets/video/intro_unicorn.mp4?v=2"
-         muted playsinline preload="auto"></video>
+  <!-- webkit-playsinline 是 iOS 9 及更早版本的写法，现代浏览器忽略它。
+       disablepictureinpicture / disableremoteplayback：避免 iOS 把视频
+       接管到系统播放器里（那样 DOM 里的 video 就永远停在第一帧）。 -->
+  <video id="introVid" src="assets/video/intro_unicorn.mp4?v=3"
+         poster="assets/video/intro_poster.webp?v=3"
+         muted playsinline webkit-playsinline
+         disablepictureinpicture disableremoteplayback
+         preload="auto"></video>
   <button class="skip" id="introSkip">跳过 ›</button>
 </div>
 
@@ -2543,7 +2573,7 @@ function playIntro(onDone){
   el.introVid.addEventListener('error', finish, {once:true});
 
   /* 一旦真的开始播了，就撤掉兜底计时器 —— 让视频自然放完。
-     早先固定 9 秒兜底：移动网络下 3.4MB 的视频常常还在缓冲就被跳过了。 */
+     早先固定 9 秒兜底：移动网络下视频常常还在缓冲就被跳过了。 */
   el.introVid.addEventListener('playing', ()=>{
     started = true;
     if(safety){ clearTimeout(safety); safety = null; }
@@ -2551,20 +2581,60 @@ function playIntro(onDone){
     el.introSkip.textContent = '跳过 ›';
   }, {once:true});
 
-  el.introVid.addEventListener('ended', finish, {once:true});
+  /* 注意：这里**不要**再加"帧没刷新就判失败"的检测。
+     试过用 requestVideoFrameCallback 判断画面是否在动，结果在一些浏览器上
+     这个回调根本不触发（页面不可见、或实现不完整），于是视频正常播放时
+     被误判成冻结、反复打回"点击播放"，反而更糟。*/
+
+  /* iOS 上 play() 常在缓冲没到的时候被静默拒绝，
+     之后也不会自己接着播 —— 表现就是"点了播放，画面停在第一帧"。
+     所以这里盯着 play() 的结果：失败就退回"点击播放"状态，
+     并把这次点击**记下来**，等 canplay 后自动补播一次。*/
+  let wantPlay = false;
 
   const armFallback = (ms)=>{
     if(safety) clearTimeout(safety);
     safety = setTimeout(()=>{ if(!started) finish(); }, ms);
   };
 
+  /* iOS 有个坑：HTML 上的 muted 属性在部分版本上不生效，
+     play() 会因为"未经用户交互的有声播放"被拒绝，
+     表现就是点了播放没反应。所以再用 JS 明确设一次。*/
+  el.introVid.muted = true;
+  el.introVid.defaultMuted = true;
+  el.introVid.volume = 0;
+
+  const doPlay = ()=>{
+    wantPlay = true;
+    const q = el.introVid.play();
+    if(q && q.then){
+      q.then(()=>{ wantPlay = false; })
+       .catch(()=>{
+          // 被拒绝：保持"点击播放"提示，等缓冲好了再试
+          if(done) return;
+          el.intro.classList.add('needtap');
+          el.introSkip.textContent = '点击播放 ›';
+       });
+    }
+  };
+
+  /* 缓冲够了就补播（如果真的还在等着播）。
+     canplay / loadeddata 都挂上：不同机型触发的时机不一样。*/
+  const resumeIfWanted = ()=>{
+    if(!wantPlay || done || started) return;
+    if(el.introVid.readyState < 2) return;   // 还没到 HAVE_CURRENT_DATA
+    const q = el.introVid.play();
+    if(q && q.catch) q.catch(()=>{});
+  };
+  el.introVid.addEventListener('canplay', resumeIfWanted);
+  el.introVid.addEventListener('loadeddata', resumeIfWanted);
+
   // 点击整屏开始播放（也用作"减弱动态效果"下的手动触发）
   const tapToPlay = ()=>{
     el.intro.classList.remove('needtap');
     el.introSkip.textContent = '跳过 ›';
-    armFallback(12000);
-    const q = el.introVid.play();
-    if(q && q.catch) q.catch(()=>{});
+    armFallback(15000);
+    doPlay();
   };
   el.intro.addEventListener('click', ev=>{
     if(ev.target.closest('.skip')) return;   // 点"跳过"就跳过，别再播一遍
@@ -2576,18 +2646,11 @@ function playIntro(onDone){
        这样既没有不请自来的动画，玩家又不会错过开场。 */
     el.intro.classList.add('needtap');
     el.introSkip.textContent = '点击播放 ›';
-    armFallback(8000);      // 一直不点就走人
+    armFallback(12000);      // 一直不点就走人
   }else{
     el.introVid.preload = 'auto';
-    armFallback(9000);
-    const p = el.introVid.play();
-    if(p && p.catch) p.catch(()=>{
-      // 自动播放被拦（省电/无痕/用户设置）—— 给个点击播放的提示
-      if(done) return;
-      el.intro.classList.add('needtap');
-      el.introSkip.textContent = '点击播放 ›';
-      armFallback(8000);
-    });
+    armFallback(12000);
+    doPlay();
   }
 }
 
