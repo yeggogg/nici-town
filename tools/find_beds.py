@@ -17,6 +17,7 @@
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -31,9 +32,15 @@ SRC = ROOT / "assets" / "opt" / "scene_field.webp"
 
 
 def main() -> None:
-    im = cv2.imdecode(np.fromfile(str(SRC), np.uint8), cv2.IMREAD_UNCHANGED)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--src", default=str(SRC), help="要分析的场景图")
+    ap.add_argument("--out", default="beds", help="输出名（_research/<out>.json）")
+    args = ap.parse_args()
+
+    src = Path(args.src)
+    im = cv2.imdecode(np.fromfile(str(src), np.uint8), cv2.IMREAD_UNCHANGED)
     if im is None:
-        raise SystemExit(f"读不到 {SRC}")
+        raise SystemExit(f"读不到 {src}")
     if im.shape[2] == 4:
         im = cv2.cvtColor(im, cv2.COLOR_BGRA2BGR)
     h, w = im.shape[:2]

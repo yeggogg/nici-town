@@ -280,18 +280,19 @@ body::before{
    两个原因：
      1. .bed 用 clip-path 裁成梯形，作物放进去会被裁掉一截
         —— 这就是"长大之后超出显示框"的来源。
-     2. 各块地的底边高度不一样（80.96 / 85.16 / 82.13 / 85.84），
-        按各自的底边定位，四株作物就会参差不齐。
-   现在统一落在同一条地平线（GROUND）上，看起来像一排种下去的。 */
+     2. 作物要落在田垄中间，且大小随地块尺寸走，
+        放在热区里没法独立控制。
+
+   宽高由 JS 按地块尺寸写进 --cw / --ch（见 bedGround）。
+   不写这两个变量，作物在手机上会小到看不清。*/
 .crop{
   position:absolute;
-  bottom:var(--ground, 78%);
+  bottom:var(--ground, 50%);
   translate:-50% 0;            /* 水平居中到那一块地的中线 */
-  height:auto;
-  max-height:19%;              /* 不再顶出田垄 */
-  max-width:13%;
+  height:var(--ch, 16%);
+  width:var(--cw, 12%);
   object-fit:contain;
-  transform-origin:50% 100%;   /* 以根部为基准长大 */
+  transform-origin:50% 92%;    /* 以根部为基准长大 */
   filter:drop-shadow(0 4px 7px rgba(28,18,8,.5));
   pointer-events:none;
   transition:transform .55s ease-out;
@@ -315,24 +316,37 @@ body::before{
 }
 .bed:hover .plus{opacity:1}
 
-/* 底部小标签：平时不显示，悬停或成熟时才出现 ——
-   画面不被文字塞满，需要时又有说明。 */
-.bed .tip{
-  position:absolute;left:50%;bottom:3%;
+/* 地块下方的小标签。
+   独立成层（不是 .bed 的子元素），因为要按**行**统一对齐 ——
+   嵌在地块里的话，只能落在各自地块的底边，而地块高度有细微差异，
+   叠起来就歪了。横向位置由 JS 按地块中线写死，纵向按行底边写死。*/
+.tag{
+  position:absolute;
   translate:-50% 0;
-  padding:3px 10px;border-radius:999px;white-space:nowrap;
+  padding:3px 9px;border-radius:999px;white-space:nowrap;
   font-size:10px;font-weight:900;color:#fff;
-  background:rgba(34,44,30,.76);
-  border:1px solid rgba(255,255,255,.34);
+  background:rgba(34,44,30,.72);
+  border:1px solid rgba(255,255,255,.3);
   backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
   text-shadow:0 1px 2px rgba(0,0,0,.5);
   opacity:0;transition:opacity .18s;
   pointer-events:none;
+  z-index:5;
 }
-.bed:hover .tip{opacity:1}
+/* 成熟 / 生长中要常驻显示 —— 手机上根本没有 hover，
+   靠 hover 才显示的标签等于永远看不见。*/
+.tag.on{opacity:1}
+.tag.on.ripe{
+  background:rgba(38,124,74,.92);
+  border-color:rgba(190,255,215,.7);
+  animation:tipPulse 1.5s ease-in-out infinite;
+}
+@keyframes tipPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+/* 桌面上悬停某块地时，只点亮它自己那个标签（由 JS 打 .on）。
+   CSS 的 ~ 兄弟选择器做不到"只对应一个"，会把所有标签都点亮。*/
 
 /* 熟了：作物轻轻上下浮动 + 一圈暖绿光，不画框也一眼看得出 */
-.bed.ripe .crop{animation:ripeBounce 1.6s ease-in-out infinite}
+.bed .crop.ripe{animation:ripeBounce 1.6s ease-in-out infinite}
 @keyframes ripeBounce{
   0%,100%{transform:scale(1) translateY(0)}
   46%{transform:scale(1.05) translateY(-6px)}
@@ -344,13 +358,6 @@ body::before{
   animation:ripeGlow 1.7s ease-in-out infinite;
 }
 @keyframes ripeGlow{0%,100%{opacity:.5}50%{opacity:1}}
-.bed.ripe .tip{
-  opacity:1;
-  background:rgba(38,124,74,.9);
-  border-color:rgba(190,255,215,.7);
-  animation:tipPulse 1.5s ease-in-out infinite;
-}
-@keyframes tipPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
 
 /* 返回牧场 */
 .fieldback{
@@ -1200,26 +1207,71 @@ const FIELD = {
   SEED_BACK: 1,
 };
 
-/* ============ 田垄坐标 ============
-   从 scene_field.webp 上按土色分割量出来的**真实梯形**（见 tools/find_beds.py）。
-   顺序：左上、右上、右下、左下，单位是图片自身的百分比。
+/* ============ 田垄坐标（两套布局）============
+   田垄位置是从场景图上按土色分割量出来的**真实梯形**
+   （见 tools/find_beds.py），顺序：左上、右上、右下、左下，
+   单位是图片自身的百分比。
 
    为什么不能均分：背景里的田垄是透视图，上窄下宽、左右还各自向外倾，
    用 2×2 网格去对永远差一截 —— 那正是"一个框硬盖在画上"的违和感来源。
 
-   下标对应 S.plots（0~3，从左到右）。*/
-const BEDS = [
-  [[16.80, 54.30], [30.47, 54.30], [18.42, 80.96], [ 1.82, 80.96]],
-  [[34.83, 54.30], [47.20, 54.30], [46.74, 85.16], [28.71, 85.16]],
-  [[51.43, 54.49], [63.54, 54.49], [69.53, 82.13], [52.73, 82.13]],
-  [[68.10, 54.98], [80.99, 54.98], [91.67, 85.84], [76.43, 85.84]],
-];
+   为什么有两套：
+     横幅图（1536x1024）是四块并排，适合横屏。
+     手机竖屏的舞台是 347x422（宽高比 0.82），横幅图用 cover 缩放
+     会撑到 630px 宽、左右各裁掉 127px，最左最右两块地直接跑到屏幕外。
+     所以给竖屏单独出一张 1024x1280 的图（四块摆成 2x2），
+     运行时按舞台宽高比自动选（见 pickFieldLayout）。
 
-/* 所有作物共用的地平线（图片百分比，从顶部算）。
-   四块地是**并排**的，深度差不多，但分割出来的底边高度有
-   80.96 / 85.16 / 82.13 / 85.84 的差异 —— 各自按底边摆，
-   四株作物就会高低不齐。取一个统一的基线反而更像"一排种下去"。*/
-const GROUND_Y = 80;
+   下标对应 S.plots（0~3）。*/
+const FIELD_LAYOUTS = {
+  /* 横幅：四块并排 */
+  wide: {
+    src: 'assets/opt/scene_field.webp?v=1',
+    aspect: 1536 / 1024,
+    beds: [
+      [[16.80, 54.30], [30.47, 54.30], [18.42, 80.96], [ 1.82, 80.96]],
+      [[34.83, 54.30], [47.20, 54.30], [46.74, 85.16], [28.71, 85.16]],
+      [[51.43, 54.49], [63.54, 54.49], [69.53, 82.13], [52.73, 82.13]],
+      [[68.10, 54.98], [80.99, 54.98], [91.67, 85.84], [76.43, 85.84]],
+    ],
+  },
+  /* 竖幅：2x2，给手机用。坐标为工具实测值。 */
+  tall: {
+    src: 'assets/opt/scene_field_portrait.webp?v=1',
+    aspect: 1024 / 1280,
+    beds: [
+      /* 顺序按 S.plots 下标；这里让 0/1 是上排、2/3 是下排。
+         上排窄、下排宽 —— 就是因为这是俯视透视。*/
+      [[ 5.50, 48.40], [ 45.80, 48.40], [ 45.50, 59.40], [  5.50, 59.40]],
+      [[53.60, 48.50], [ 87.30, 48.50], [ 93.50, 59.50], [ 53.60, 59.50]],
+      [[ 7.20, 65.50], [ 45.00, 65.50], [ 44.20, 82.10], [  1.20, 82.10]],
+      [[54.80, 65.50], [ 92.80, 65.50], [ 94.30, 82.50], [ 56.00, 82.50]],
+    ],
+  },
+};
+
+/* 当前用哪套。由 pickFieldLayout() 按舞台宽高比决定。*/
+let fieldLayout = 'wide';
+const BEDS = () => FIELD_LAYOUTS[fieldLayout].beds;
+const fieldAspect = () => FIELD_LAYOUTS[fieldLayout].aspect;
+
+/* 按舞台宽高比选布局。舞台接近方形/竖的时候用竖幅图，
+   否则用横幅 —— 选比例更接近的那个，cover 裁切最少。*/
+function pickFieldLayout(){
+  const sw = el.stage.clientWidth, sh = el.stage.clientHeight;
+  if(!(sw > 0 && sh > 0)) return fieldLayout;
+  const stageAspect = sw / sh;
+  let best = 'wide', bestD = Infinity;
+  for(const [k, L] of Object.entries(FIELD_LAYOUTS)){
+    const d = Math.abs(Math.log(stageAspect / L.aspect));
+    if(d < bestD){ bestD = d; best = k; }
+  }
+  if(best !== fieldLayout){
+    fieldLayout = best;
+    fieldSig = '';           // 换了布局，田垄坐标全变了，必须重建
+  }
+  return fieldLayout;
+}
 
 /* 四边形 -> CSS 定位 + clip-path。
    先求包围盒（left/top/width/height），再用 clip-path 裁成梯形 ——
@@ -1988,40 +2040,70 @@ function renderField(){
 }
 
 /* 重建田垄结构。只在种/收/成熟/换角色时调用。*/
-/* 每块地的中心 x，以及所有作物共用的地平线。
-   bottom 是**距容器底部**的百分比，所以要用 100 - GROUND_Y 换算 ——
-   直接用 GROUND_Y 作物会长到天上去（这个方向踩过一次）。 */
+/* 每块地的作物落点与尺寸。
+   作物：水平居中于地块，垂直落在地块**中线**（用户要"往田地中间靠"），
+         并从那里向上长。
+   尺寸：按地块自身的宽高算，而不是写死百分比 ——
+         横幅布局的田垄和竖屏 2x2 的田垄大小差很多，
+         写死一个比例会让其中一种布局上的作物过大或过小。
+   标签：同一行的地共用一条水平线，所以按行取底边。*/
 function bedGround(i){
-  const q = BEDS[i];
+  const q = BEDS()[i];
   const xs = q.map(p => p[0]);
+  const ys = q.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const cy = (y0 + y1) / 2;
+  const bw = x1 - x0, bh = y1 - y0;
   return {
-    cx: (Math.min(...xs) + Math.max(...xs)) / 2,
-    bottom: 100 - GROUND_Y,
+    cx: (x0 + x1) / 2,
+    /* 作物根部略低于地块中线，向上生长 ——
+       用户要"往田地中间靠一点"，但不能贴着地块底边（那样像掉在田垄外）。*/
+    bottom: 100 - (cy + bh * 0.08),
+    /* 尺寸跟着地块走：横幅布局的田垄和竖屏 2x2 的田垄差很多，
+       写死百分比会让其中一种布局上的作物过大或过小。
+       0.66 让作物基本待在地块内，只在顶部冒出一小截（看起来是长出来的）。*/
+    hPct: bh * 0.66,
+    wPct: bw * 0.34,
   };
+}
+
+/* 把地块按"底边高度接近"分组 —— 每组就是视觉上的一行。
+   返回每块地所属行的底边（图片百分比）。*/
+function rowBottoms(){
+  const bots = BEDS().map(q => Math.max(...q.map(p => p[1])));
+  return bots.map(b => {
+    // 找同一行里最靠上的那个底边，作为整行统一的基准
+    const sameRow = bots.filter(x => Math.abs(x - b) < 6);
+    return Math.min(...sameRow);
+  });
 }
 
 function buildField(){
   const u = byId(S.chosen);
 
-  /* 两块 DOM 分开建：
-       .bed   透明梯形热区（负责点击，被 clip-path 裁成梯形）
-       .crop  作物（**不能**放在热区里，否则会被裁剪掉一截）
-     早先作物嵌在 .bed 内部，成熟放大时就被梯形裁掉了，
-     这正是"长大之后超出显示框"的原因。 */
-  let beds = '', crops = '';
+  /* 三层 DOM 分开建，各管一件事：
+       .bed   透明梯形热区（点击，clip-path 裁成梯形）
+       .crop  作物（不能放进热区，否则会被梯形裁掉一截）
+       .tag   标签（单独一层，才能按行统一对齐） */
+  let beds = '', crops = '', tags = '';
+  const rows = rowBottoms();
 
   S.plots.forEach((p, i) => {
-    const style = bedStyle(BEDS[i]);
-    const { cx, bottom } = bedGround(i);
+    const style = bedStyle(BEDS()[i]);
+    const { cx, cy, bottom, hPct, wPct } = bedGround(i);
     const glow  = `<span class="bedglow"></span>`;
+    // 同一行的地，标签落在同一条水平线上
+    const tagBottom = 100 - (rows[i] - 1.5);
 
     if(!p){
       beds += `<button class="bed" style="${style}" data-plant="${i}"
                        aria-label="第 ${i+1} 块空地，点击种下草籽">
         ${glow}
         <span class="plus">＋</span>
-        <span class="tip">种点什么</span>
       </button>`;
+      tags += `<span class="tag" data-tag="${i}"
+                     style="left:${cx.toFixed(2)}%;bottom:${tagBottom.toFixed(2)}%">种点什么</span>`;
       return;
     }
 
@@ -2034,47 +2116,45 @@ function buildField(){
       beds += `<button class="bed ripe" style="${style}" data-harvest="${i}"
                        aria-label="收获${seed.n}">
         ${glow}
-        <span class="tip">收 +${got}${fav ? ' 💖' : ''}</span>
       </button>`;
+      tags += `<span class="tag on ripe" data-tag="${i}"
+                     style="left:${cx.toFixed(2)}%;bottom:${tagBottom.toFixed(2)}%">收 +${got}${fav ? ' 💖' : ''}</span>`;
     }else{
       beds += `<div class="bed" style="${style}">
         ${glow}
-        <span class="tip">${seed.n}</span>
       </div>`;
+      tags += `<span class="tag" data-tag="${i}"
+                     style="left:${cx.toFixed(2)}%;bottom:${tagBottom.toFixed(2)}%">${seed.n}</span>`;
     }
 
     crops += `<img class="crop${isRipe ? ' ripe' : ''}"
                    src="assets/crops/${seed.k}.webp?v=${ASSET_V}"
                    alt="${seed.n}" draggable="false"
                    data-bed="${i}"
-                   style="left:${cx.toFixed(2)}%;--ground:${bottom.toFixed(2)}%"
+                   style="left:${cx.toFixed(2)}%;--ground:${bottom.toFixed(2)}%;--ch:${hPct.toFixed(1)}%;--cw:${wPct.toFixed(1)}%"
                    onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'crop pem',style:this.getAttribute('style'),textContent:'${seed.em}'}))">`;
   });
 
-  el.fieldBox.innerHTML = beds + crops;
+  el.fieldBox.innerHTML = beds + crops + tags;
 }
 
 /* 只更新进度：作物大小 + 倒计时文字。
    刻意不碰 innerHTML —— 一重建，hover 就断了。*/
 function updateFieldProgress(){
-  const crops = el.fieldBox.querySelectorAll('.crop');
-  const beds  = el.fieldBox.querySelectorAll('.bed');
-
   for(let i = 0; i < S.plots.length; i++){
     const p = S.plots[i];
     const crop = el.fieldBox.querySelector(`.crop[data-bed="${i}"]`);
-    const bed  = beds[i];
+    const tag  = el.fieldBox.querySelector(`.tag[data-tag="${i}"]`);
     if(!p || !crop) continue;
 
     const seed = seedOf(p.k);
     if(!plotReady(p)){
       const grow = 0.42 + 0.58 * plotPct(p);
       crop.style.transform = `scale(${grow.toFixed(3)})`;
-      const tip = bed && bed.querySelector('.tip');
-      if(tip){
+      if(tag){
         const left = Math.max(0, Math.ceil((seed.growMs - (Date.now() - p.at)) / 1000));
-        const txt = `${seed.n} · ${left} 秒`;
-        if(tip.textContent !== txt) tip.textContent = txt;
+        const txt = `${left} 秒`;
+        if(tag.textContent !== txt) tag.textContent = txt;
       }
     }else{
       crop.style.transform = '';
@@ -2266,20 +2346,26 @@ el.btnGift.addEventListener('click', ()=>{
    舞台不能直接用 background（cover 会裁掉两侧，坐标系就错位了），
    所以放一张等比缩放的 <img>，再按图片尺寸算它的实际像素尺寸和偏移。
    田垄坐标是图片百分比，落在这一层上就永远对得准。*/
-const FIELD_ASPECT = 1536 / 1024;
 function layoutFieldScene(){
   const sc = $('fieldScene');
   if(!sc) return;
+
+  // 先按舞台比例选布局（横幅/竖幅），再按所选图的宽高比算尺寸
+  pickFieldLayout();
+  const L = FIELD_LAYOUTS[fieldLayout];
+  const img = sc.querySelector('.bg');
+  if(img && !img.src.includes(L.src.split('?')[0])) img.src = L.src;
+
   const sw = el.stage.clientWidth, sh = el.stage.clientHeight;
   if(!(sw > 0 && sh > 0)) return;
   let w, h;
   /* cover 规则：取两个缩放比里**大**的那个，保证两个方向都铺满。
      舞台比图更"宽"（sw/sh 大于图片比例）时以宽度为准，
      否则以高度为准。这两条早先写反了，结果顶部露出一条空档。 */
-  if(sw / sh >= FIELD_ASPECT){     // 舞台更宽：宽度撑满，上下裁
-    w = sw; h = sw / FIELD_ASPECT;
+  if(sw / sh >= L.aspect){         // 舞台更宽：宽度撑满，上下裁
+    w = sw; h = sw / L.aspect;
   }else{                            // 舞台更高：高度撑满，左右裁
-    h = sh; w = sh * FIELD_ASPECT;
+    h = sh; w = sh * L.aspect;
   }
   // 底部对齐（田垄在画面下半部，贴底最稳），水平居中
   sc.style.width  = w + 'px';
