@@ -91,6 +91,14 @@ body::before{
 }
 .iconbtn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(120,95,160,.16)}
 .iconbtn:active{transform:scale(.94)}
+/* 田里有草熟了：按钮冒个小绿点，不用打开也知道该去收了 */
+.iconbtn.hasRipe{position:relative;border-color:#8fd9a8;animation:ripePulse 1.8s ease-in-out infinite}
+.iconbtn.hasRipe::after{
+  content:'';position:absolute;top:-3px;right:-3px;
+  width:10px;height:10px;border-radius:50%;
+  background:#5fc48b;border:2px solid #fff;
+  box-shadow:0 1px 4px rgba(60,150,100,.5);
+}
 
 /* ============ 舞台 ============ */
 .stage{
@@ -278,6 +286,68 @@ body::before{
 }
 .grassbar{flex:1;height:9px;border-radius:999px;background:rgba(140,120,170,.13);overflow:hidden;box-shadow:inset 0 1px 2px rgba(120,95,160,.12)}
 .grassbar i{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,#a9e28b,#5fc48b);transition:width .5s ease}
+
+/* ============ 田地 ============ */
+.fieldbox{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.plot{
+  position:relative;border-radius:17px;cursor:pointer;
+  padding:11px 10px 10px;text-align:center;
+  background:linear-gradient(180deg,#f4efe4,#e9e0cf);
+  border:1.5px solid #d9cdb6;
+  transition:transform .18s, box-shadow .18s, filter .18s;
+  font-family:inherit;color:var(--ink);
+  min-height:104px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+}
+.plot:hover{transform:translateY(-3px);box-shadow:0 10px 22px rgba(120,95,160,.18)}
+.plot:active{transform:scale(.97)}
+/* 空着的地：虚线边框 + 淡一点，一眼能看出"这里可以种" */
+.plot.empty{
+  background:rgba(140,120,170,.05);
+  border:1.5px dashed rgba(140,120,170,.4);
+}
+.plot .pem{font-size:30px;line-height:1;filter:drop-shadow(0 2px 4px rgba(120,95,160,.22))}
+.plot .pn{font-size:11.5px;font-weight:900;letter-spacing:.3px}
+.plot .psub{font-size:10px;font-weight:700;color:var(--ink-soft);line-height:1.4}
+/* 生长中：进度条代替倒计时数字，看着更有"在长"的感觉 */
+.plot .pbar{
+  width:100%;height:7px;border-radius:999px;margin-top:3px;
+  background:rgba(140,120,170,.16);overflow:hidden;
+}
+.plot .pbar i{display:block;height:100%;width:0;border-radius:999px;
+  background:linear-gradient(90deg,#a9e28b,#5fc48b);transition:width .3s linear}
+/* 熟了：呼吸光晕，提示可以收了 */
+.plot.ripe{
+  background:linear-gradient(180deg,#eafbef,#d6f5e0);
+  border-color:#8fd9a8;
+  animation:ripePulse 1.8s ease-in-out infinite;
+}
+@keyframes ripePulse{0%,100%{box-shadow:0 0 0 0 rgba(95,196,139,.45)}50%{box-shadow:0 0 0 9px rgba(95,196,139,0)}}
+.plot.ripe .pem{animation:emPop .6s cubic-bezier(.3,1.5,.5,1)}
+
+/* 种子选择器（点空地时弹出） */
+.seedlist{display:flex;flex-direction:column;gap:9px}
+.seedItem{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:12px 13px;border-radius:16px;cursor:pointer;text-align:left;
+  background:rgba(140,120,170,.07);border:1px solid var(--line);
+  font-family:inherit;color:var(--ink);font-size:13px;font-weight:800;
+  transition:background .15s, transform .15s;
+}
+.seedItem:hover{background:rgba(140,120,170,.14);transform:translateX(2px)}
+.seedItem .em{font-size:24px}
+.seedItem .nm{display:block}
+.seedItem .ds{font-size:10.5px;font-weight:600;color:var(--ink-soft);display:block;margin-top:2px;line-height:1.5}
+.seedItem .own{margin-left:auto;text-align:right;flex:0 0 auto}
+.seedItem .own .ct{font-size:15px;font-weight:900}
+.seedItem .own .lb{font-size:9.5px;font-weight:700;color:var(--ink-soft);display:block}
+/* 独角兽最爱吃的那种，标一下 */
+.seedItem .fav{
+  display:inline-block;margin-left:5px;font-size:9.5px;font-weight:900;
+  padding:2px 7px;border-radius:999px;
+  background:linear-gradient(90deg,#ffd6e8,#ffe8c2);color:#c04a7d;
+}
+.seedItem:disabled{cursor:not-allowed;filter:grayscale(.6);opacity:.55}
 
 /* ============ 选角 ============ */
 .screen{display:none}
@@ -556,6 +626,7 @@ body.modal-open{overflow:hidden}
       <div class="spacer"></div>
       <div class="chip" id="chipDay">第 1 天</div>
       <div class="chip sun" id="chipLv">Lv.1</div>
+      <button class="iconbtn" id="btnField" title="小田地">🌾</button>
       <button class="iconbtn" id="btnGift" title="魔法礼品柜">🎁</button>
       <button class="iconbtn" id="btnMenu" title="更多">⋯</button>
     </div>
@@ -616,13 +687,35 @@ body.modal-open{overflow:hidden}
 
     <div class="panel row2">
       <div class="grassfield">
-        <span>🌱 草地生长</span>
+        <span>🌿 存草</span>
         <div class="grassbar"><i id="grassFill"></i></div>
       </div>
       <div class="chip" id="chipGift">🎁 0</div>
     </div>
-
   </section>
+</div>
+
+<!-- ========== 田地 ========== -->
+<!-- data-nobg：点背景不关，避免误触（种田要连着种几块地） -->
+<div class="modal" id="modalField" data-nobg>
+  <div class="sheet">
+    <button class="closex" data-close>✕</button>
+    <h2>🌾 小田地</h2>
+    <p class="sub" id="fieldSub">种下草籽，等它长熟，收草喂独角兽</p>
+    <div class="fieldbox" id="fieldBox"></div>
+    <div style="height:14px"></div>
+    <button class="btn-primary" data-close>好 的</button>
+  </div>
+</div>
+
+<!-- ========== 选种子 ========== -->
+<div class="modal" id="modalSeed" data-nobg>
+  <div class="sheet">
+    <button class="closex" data-close>✕</button>
+    <h2 id="seedTitle">🌱 种什么？</h2>
+    <p class="sub" id="seedSub">长得越慢的收得越多。种它最爱吃的那种，收成 ×1.5</p>
+    <div class="seedlist" id="seedList"></div>
+  </div>
 </div>
 
 <!-- ========== 礼品柜 ========== -->
@@ -702,6 +795,7 @@ const UNICORNS = [
     accent:'#e8457a', hoof:'#f0dde4',
     mark:'star', bow:false,
     desc:'米白身体配亮粉鬃毛，身上绣着小星星。是这一系列里最经典的一只，也最容易被哄开心。',
+    fav:'clover',            // 最爱三叶草
     bonus:{ happyDecay:-0.012 }
   },
   {
@@ -712,6 +806,7 @@ const UNICORNS = [
     accent:'#2e9fb8', hoof:'#dceef2',
     mark:'rainbow', bow:false,
     desc:'米白身体配青蓝色鬃毛，身上有一道小彩虹。配色最清爽的一只，吃得多、长得快。',
+    fav:'timothy',           // 最爱提摩西
     bonus:{ feedGain:1.12 }
   },
   {
@@ -722,6 +817,7 @@ const UNICORNS = [
     accent:'#e0407f', hoof:'#f5c6d8',
     mark:'hex', bow:false,
     desc:'通体粉色亮片的撒糖款，配上雪白鬃毛。跑起来浑身闪，尾巴一甩就停不下来。',
+    fav:'dandelion',         // 最爱蒲公英
     bonus:{ playGain:1.35 }
   },
   {
@@ -732,6 +828,7 @@ const UNICORNS = [
     accent:'#e8609b', hoof:'#f2d9e6',
     mark:'gem', bow:false,
     desc:'深灰亮片配粉色鬃毛，像夜里的星空。陪它玩的时候，生长度涨得特别快。',
+    fav:'alfalfa',           // 最爱苜蓿
     bonus:{ growthGain:1.2 }
   }
 ];
@@ -841,8 +938,10 @@ const CFG = {
 
   GRASS_START   : 30,      // (正常 12)
   GRASS_MAX     : 80,      // (正常 40)
-  GRASS_EVERY   : 1.5,     // 每 N 秒长一根草 (正常 14)
-  DAY_GRASS_GIFT: 6,
+  /* 注意：原来的 GRASS_EVERY（每 N 秒自动长一根草）已删除 ——
+     草现在只能靠种田收，见下方的 SEEDS / FIELD。
+     留着自动长草的话，种田就没有意义了。*/
+  DAY_GRASS_GIFT: 6,       // 隔天赠送的**种子**（不是草）
 
   /* 抚摸/玩耍用**冷却恢复**，不是"每天限几次" ——
      几分钟的演示里，按天限制等于把按钮锁死。
@@ -850,6 +949,32 @@ const CFG = {
      (正常档：PET_MAX 1 / PLAY_MAX 2，次日才恢复) */
   PET_MAX   : 5,   PET_REGEN  : 1.0,   // 每 1 秒回一次抚摸
   PLAY_MAX  : 5,   PLAY_REGEN : 1.5,   // 每 1.5 秒回一次玩耍
+};
+
+/* ============ 田地：草籽 ============
+   草不再自己长 —— 唯一来源是种田收草。这样"喂草"才是一件要花心思的事。
+
+   四种籽的取舍是**时间换产量**：快的收得少，慢的收得多。
+   每只独角兽最馋其中一种（见 UNICORNS 的 fav），种对口味的收成 +50%。
+
+   growMs 是按**演示**调的（几秒就熟）。正常档应该按小时算。*/
+const SEEDS = [
+  { k:'clover',    em:'🍀', n:'三叶草',   growMs: 6000,  yield: 3,  desc:'长得最快，但一次收不了几根。' },
+  { k:'timothy',   em:'🌾', n:'提摩西',   growMs: 9000,  yield: 5,  desc:'长得快、收成也还行，最省心的一种。' },
+  { k:'alfalfa',   em:'🌱', n:'苜蓿',     growMs: 12000, yield: 8,  desc:'要等一会儿，但收成很实在。' },
+  { k:'dandelion', em:'🌼', n:'蒲公英',   growMs: 15000, yield: 12, desc:'等得最久，一次能收一大把。' },
+];
+const seedOf = k => SEEDS.find(s => s.k === k) || SEEDS[0];
+
+const FIELD = {
+  PLOTS: 4,          // 田块数
+  FAV_BONUS: 1.5,    // 种到自己最爱吃的草，收成 ×1.5
+  /* 收割时返还的种子数。
+     不返还的话种子会用光（初始就 8 颗），而草又不再自己长，
+     游戏会直接卡死 —— 没草喂、也没种子再种。
+     返还 1 颗就能一直种下去（收一次净亏 1 颗的节奏太慢，够演示）。
+     返还 2 颗时种子反而会越攒越多，那也不对。*/
+  SEED_BACK: 1,
 };
 
 /* 成长曲线。demo 档几乎压平了：配合 FEED_GROWTH = 50，
@@ -913,6 +1038,12 @@ function freshState(){
     // 抚摸/玩耍的次数：用完会随时间自动补回，见 CFG.PET_REGEN / PLAY_REGEN
     pet:CFG.PET_MAX, petT:0,
     play:CFG.PLAY_MAX, playT:0,
+    /* 田地。每块地是 null（空着）或 { k:种子key, at:种下的时间戳 }。
+       存的是**绝对时间戳**而不是倒计时 —— 这样关掉页面再回来，
+       草该长好就长好了，不用让游戏一直开着空耗。 */
+    plots: Array.from({length: FIELD.PLOTS}, () => null),
+    seedBag: { clover:3, timothy:2, alfalfa:2, dandelion:1 },   // 初始各给一点
+    harvests:0,
     feeds:0, pets:0, plays:0, giftTotal:0, bornAt:Date.now(),
     grassTimer:0,
     muted:false,
@@ -1004,7 +1135,10 @@ const el = {
   badgeGrass:$('badgeGrass'), badgePet:$('badgePet'), badgePlay:$('badgePlay'),
   subFeed:$('subFeed'), subPet:$('subPet'), subPlay:$('subPlay'),
   chipDay:$('chipDay'), chipLv:$('chipLv'), chipGift:$('chipGift'), grassFill:$('grassFill'),
-  btnGift:$('btnGift'), btnMenu:$('btnMenu'),
+  btnGift:$('btnGift'), btnMenu:$('btnMenu'), btnField:$('btnField'),
+  modalField:$('modalField'), fieldBox:$('fieldBox'), fieldSub:$('fieldSub'),
+  modalSeed:$('modalSeed'), seedList:$('seedList'), seedTitle:$('seedTitle'),
+  seedSub:$('seedSub'),
   modalGift:$('modalGift'), giftBox:$('giftBox'), giftDetail:$('giftDetail'), giftSub:$('giftSub'),
   modalReveal:$('modalReveal'), rvEm:$('rvEm'), rvName:$('rvName'), rvDesc:$('rvDesc'),
   rvRibbon:$('rvRibbon'), rvOk:$('rvOk'),
@@ -1375,7 +1509,12 @@ function checkDay(silent=false){
   // 这里是"过夜"额外给的一次满血）
   S.pet = CFG.PET_MAX; S.petT = 0;
   S.play = CFG.PLAY_MAX; S.playT = 0;
-  S.grass = Math.min(CFG.GRASS_MAX, S.grass + CFG.DAY_GRASS_GIFT * Math.min(passed,3));
+  /* 隔天补的是**种子**，不是草。
+     草现在只能靠种田收（见 SEEDS / FIELD）—— 直接送草的话，
+     等于有条捷径绕过田地，那套玩法就没意义了。
+     四种各补几颗。*/
+  const gift = CFG.DAY_GRASS_GIFT * Math.min(passed, 3);
+  SEEDS.forEach(s => { S.seedBag[s.k] = (S.seedBag[s.k] || 0) + Math.ceil(gift / 4); });
   S.happy = Math.min(100, S.happy + 6);   // 见到主人，开心一点
   S.growth = Math.min(growthCap(S.lv), S.growth + 2);
   save();
@@ -1485,9 +1624,150 @@ function render(){
 const petAmount  = () => Math.round(CFG.PET_HAPPY);
 const playAmount = () => Math.round(CFG.PLAY_HAPPY * (byId(S.chosen).bonus.playGain || 1));
 
+/* ============ 田地：种 / 收 ============
+   草的唯一来源。每块地存 { k:种子key, at:种下的时间戳 }。
+
+   为什么存绝对时间戳而不是倒计时：这样关掉页面再回来，
+   草该长好就长好了 —— 玩家不用为了等草熟而一直开着游戏。*/
+const plotReady = p => !!p && (Date.now() - p.at) >= seedOf(p.k).growMs;
+const plotPct   = p => !p ? 0 : Math.min(1, (Date.now() - p.at) / seedOf(p.k).growMs);
+const ripeCount = () => S.plots.filter(plotReady).length;
+
+/* 种到第 i 块地。种子不够会拒绝。*/
+function doPlant(i, seedKey){
+  const seed = seedOf(seedKey);
+  if(S.plots[i]) { toast('这块地已经种上啦'); return; }
+  if((S.seedBag[seed.k] || 0) <= 0){ SFX.no(); toast(`${seed.n}的种子用完了 🌱`); return; }
+
+  S.seedBag[seed.k]--;
+  S.plots[i] = { k: seed.k, at: Date.now() };
+  SFX.click(); buzz(10);
+  closeModal(el.modalSeed);
+  renderField();
+  toast(`种下了${seed.n}，${Math.round(seed.growMs/1000)} 秒后就能收 🌱`);
+}
+
+/* 收第 i 块地。没熟会拒绝。*/
+function doHarvest(i){
+  const p = S.plots[i];
+  if(!p) return;
+  if(!plotReady(p)){ SFX.no(); toast('还没长好，再等一会儿 🌿'); return; }
+
+  const seed = seedOf(p.k);
+  // 种的是它最爱吃的草 -> 收成加成。四只各有口味，四种种籽才有区别。
+  const fav  = byId(S.chosen).fav === seed.k;
+  const got  = Math.round(seed.yield * (fav ? FIELD.FAV_BONUS : 1));
+
+  S.grass = Math.min(CFG.GRASS_MAX, S.grass + got);
+  /* 收完留种：不返还的话种子会用光（初始就 8 颗），
+     而草又不再自己长，游戏就卡死了 —— 没草喂、也没种子再种。*/
+  S.seedBag[seed.k] = (S.seedBag[seed.k] || 0) + FIELD.SEED_BACK;
+  S.harvests++;
+  S.plots[i] = null;
+  SFX.feed(); buzz(14); burstHearts(fav ? 5 : 3);
+  floaty(`🌿 +${got}`, 50, fav ? '#ff5c9d' : '#3a9e6a');
+  if(fav) setTimeout(()=>floaty('它最爱吃这个！', 50, '#ff9d2e'), 260);
+  renderField(); render();
+  toast(fav ? `收了 ${got} 根${seed.n}（最爱吃 ×${FIELD.FAV_BONUS}）`
+            : `收了 ${got} 根${seed.n}`);
+}
+
+/* 每当有地熟了就说一声 —— 但只在"刚变熟"的那一刻提醒一次，
+   否则每帧都会弹。 */
+let lastRipe = 0;
+function checkRipe(){
+  const n = ripeCount();
+  if(n > lastRipe){
+    SFX.full();
+    toast(n === 1 ? '有草长好啦，去收 🌾' : `${n} 块地的草都长好啦 🌾`);
+  }
+  lastRipe = n;
+}
+
+/* 画田地。每帧会被调，但只在内容真的变了才重建 DOM。
+   弹窗关着时只更新按钮上的红点、不重建格子 ——
+   否则会白白销毁重建 DOM（用户根本没在看那个界面）。*/
+let fieldSig = '';
+function renderField(){
+  if(!S || !el.fieldBox) return;
+
+  // 熟了的地要显示进度条在走，所以签名里带上百分比
+  const sig = S.plots.map(p => !p ? '_' : `${p.k}:${Math.round(plotPct(p)*100)}`).join('|')
+            + `#${ripeCount()}#${Object.values(S.seedBag).join(',')}`;
+  if(sig === fieldSig) return;
+  fieldSig = sig;
+
+  const ripe = ripeCount();
+
+  // 田间提示：熟了就在按钮上冒个红点（关着弹窗也要更新）
+  if(el.btnField) el.btnField.classList.toggle('hasRipe', ripe > 0);
+
+  // 弹窗没开就不用重建格子了
+  if(!el.modalField.classList.contains('on')) return;
+
+  const u = byId(S.chosen);
+  el.fieldBox.innerHTML = S.plots.map((p, i) => {
+    if(!p){
+      return `<button class="plot empty" data-plant="${i}">
+        <span class="pem">＋</span>
+        <span class="pn">空地</span>
+        <span class="psub">点这里种下草籽</span>
+      </button>`;
+    }
+    const seed = seedOf(p.k);
+    const isRipe = plotReady(p);
+    const pct  = Math.round(plotPct(p) * 100);
+    const left = Math.max(0, Math.ceil((seed.growMs - (Date.now() - p.at)) / 1000));
+    const fav  = u && u.fav === seed.k;
+    if(isRipe){
+      const got = Math.round(seed.yield * (fav ? FIELD.FAV_BONUS : 1));
+      return `<button class="plot ripe" data-harvest="${i}">
+        <span class="pem">${seed.em}</span>
+        <span class="pn">${seed.n}${fav ? ' 💖' : ''}</span>
+        <span class="psub">长好了！点一下收割 +${got}</span>
+      </button>`;
+    }
+    return `<div class="plot">
+      <span class="pem">${seed.em}</span>
+      <span class="pn">${seed.n}${fav ? ' 💖' : ''}</span>
+      <span class="psub">还有 ${left} 秒</span>
+      <span class="pbar"><i style="width:${pct}%"></i></span>
+    </div>`;
+  }).join('');
+
+  // 地里空闲的块数、以及能收几块，写在标题下
+  const empty = S.plots.filter(p => !p).length;
+  el.fieldSub.textContent = ripe > 0 ? `${ripe} 块可以收了！`
+                          : empty > 0 ? `还有 ${empty} 块空地可以种`
+                          : '都在长着，等一会儿就好';
+}
+
+/* 打开选种子的弹窗（点空地时）*/
+let plantingPlot = -1;
+function openSeedPicker(i){
+  plantingPlot = i;
+  const u = byId(S.chosen);
+  el.seedList.innerHTML = SEEDS.map(s => {
+    const own = S.seedBag[s.k] || 0;
+    const fav = u && u.fav === s.k;
+    return `<button class="seedItem" data-seed="${s.k}" ${own <= 0 ? 'disabled' : ''}>
+      <span class="em">${s.em}</span>
+      <span>
+        <span class="nm">${s.n}${fav ? '<span class="fav">它最爱吃</span>' : ''}</span>
+        <span class="ds">${Math.round(s.growMs/1000)} 秒长好 · ${s.desc}</span>
+      </span>
+      <span class="own">
+        <span class="ct">${own}</span>
+        <span class="lb">颗种子</span>
+      </span>
+    </button>`;
+  }).join('');
+  openModal(el.modalSeed);
+}
+
 /* ---------------- 13. 动作 ---------------- */
 function doFeed(){
-  if(S.grass <= 0){ SFX.no(); flashBtn(el.btnFeed); toast('草吃完啦，等草地长出来 🌱'); return; }
+  if(S.grass <= 0){ SFX.no(); flashBtn(el.btnFeed); toast('草用完啦，去小田地种一点 🌾'); return; }
   if(S.full >= 99.5){ SFX.no(); flashBtn(el.btnFeed); toast(`${byId(S.chosen).name} 已经吃不下了…`); return; }
 
   const u = byId(S.chosen);
@@ -1632,6 +1912,27 @@ el.btnGift.addEventListener('click', ()=>{
   SFX.click(); renderGiftBox(); openModal(el.modalGift);
 });
 
+/* ---- 田地 ---- */
+el.btnField.addEventListener('click', ()=>{
+  SFX.click(); renderField(); openModal(el.modalField);
+});
+
+/* 田地里的点击：空地打开选种子，熟了的地直接收。
+   用事件委托，因为 renderField 每次都会重建这些节点。 */
+el.fieldBox.addEventListener('click', e=>{
+  const empty = e.target.closest('[data-plant]');
+  if(empty){ SFX.click(); openSeedPicker(+empty.dataset.plant); return; }
+  const ripe = e.target.closest('[data-harvest]');
+  if(ripe){ doHarvest(+ripe.dataset.harvest); }
+});
+
+/* 选种子 */
+el.seedList.addEventListener('click', e=>{
+  const b = e.target.closest('[data-seed]');
+  if(!b || b.disabled) return;
+  doPlant(plantingPlot, b.dataset.seed);
+});
+
 el.btnMenu.addEventListener('click', ()=>{
   SFX.click();
   el.menuName.textContent = byId(S.chosen).name;
@@ -1716,17 +2017,15 @@ function tick(now){
       if(S.playT >= CFG.PLAY_REGEN){ S.playT -= CFG.PLAY_REGEN; S.play = Math.min(CFG.PLAY_MAX, S.play + 1); }
     } else S.playT = 0;
 
-    // 草地生长
-    S.grassTimer += dt;
-    if(S.grassTimer >= CFG.GRASS_EVERY){
-      S.grassTimer -= CFG.GRASS_EVERY;
-      if(S.grass < CFG.GRASS_MAX){
-        S.grass++;
-        floaty('🌱 +1', 12 + Math.random()*16, '#5fc48b');
-      }
-    }
+    /* 草不再自己长 —— 唯一来源是种田（见 doPlant / doHarvest）。
+       早先有"每 N 秒自动 +1 根"的兜底，现在去掉了：
+       那样种田就没意义了，草会自己冒出来，玩家不用管。 */
 
     checkGrowth();
+    /* 田地：熟了要提醒，进度条也得跟着走（田地在弹窗里，
+       没打开时 renderField 会因签名没变而直接返回，开销可忽略）。*/
+    checkRipe();
+    renderField();
     updateUni(now, dt);
     render();
   }
